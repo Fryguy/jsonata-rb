@@ -1,8 +1,10 @@
-# Jsonata
+# JSONata
 
-TODO: Delete this and the text below, and describe your gem
+Pure Ruby implementation of [JSONata](https://jsonata.org/).
 
-Welcome to your new gem! In this directory, you'll find the files you need to be able to package up your Ruby library into a gem. Put your Ruby code in the file `lib/jsonata`. To experiment with that code, run `bin/console` for an interactive prompt.
+This is a Ruby port of the JSONata reference implementation, taking inspiration from [jsonata-python](https://github.com/rayokota/jsonata-python).
+
+This implementation supports 100% of the language features of JSONata, with no external dependencies.
 
 ## Installation
 
