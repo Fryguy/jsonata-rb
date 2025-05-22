@@ -2,7 +2,13 @@
 
 require_relative "jsonata/version"
 
-module Jsonata
+class Jsonata
   class Error < StandardError; end
-  # Your code goes here...
+
+  def initialize(expr)
+    @expr = expr
+  end
+
+  def evaluate(dataset, bindings)
+  end
 end
