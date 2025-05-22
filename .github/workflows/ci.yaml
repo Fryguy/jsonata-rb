@@ -20,5 +20,7 @@ jobs:
       with:
         ruby-version: ${{ matrix.ruby-version }}
         bundler-cache: true
-    - name: Run the default task
+    - name: Set up submodules
+      run: git submodule update --init --recursive
+    - name: Run tests
       run: bundle exec rake
