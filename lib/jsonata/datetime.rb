@@ -42,7 +42,7 @@ module Jsonata
         elsif num < 1000
           hundreds = Utils.js_floor(num / 100.0)
           remainder = num % 100
-          words = "#{prev ? ', ' : ''}#{FEW[hundreds]} Hundred"
+          words = "#{', ' if prev}#{FEW[hundreds]} Hundred"
           if remainder.positive?
             words += lookup.call(remainder, true, ord)
           elsif ord
@@ -54,7 +54,7 @@ module Jsonata
           factor = 10.0**(mag * 3)
           mant = Utils.js_floor(num / factor)
           remainder = Utils.normalize_number(num - (mant * factor))
-          words = "#{prev ? ', ' : ''}#{lookup.call(mant, false, false)} #{MAGNITUDES[mag - 1]}"
+          words = "#{', ' if prev}#{lookup.call(mant, false, false)} #{MAGNITUDES[mag - 1]}"
           if remainder.positive?
             words += lookup.call(remainder, true, ord)
           elsif ord
@@ -126,7 +126,7 @@ module Jsonata
       [1, 'i']
     ].freeze
 
-    ROMAN_VALUES = { 'M' => 1000, 'D' => 500, 'C' => 100, 'L' => 50, 'X' => 10, 'V' => 5, 'I' => 1 }.freeze
+    ROMAN_VALUES = {'M' => 1000, 'D' => 500, 'C' => 100, 'L' => 50, 'X' => 10, 'V' => 5, 'I' => 1}.freeze
 
     # converts a number to roman numerals
     # @param value - the number
@@ -199,17 +199,17 @@ module Jsonata
     end
 
     FORMATS = {
-      DECIMAL: 'decimal',
-      LETTERS: 'letters',
-      ROMAN: 'roman',
-      WORDS: 'words',
-      SEQUENCE: 'sequence'
+      :DECIMAL  => 'decimal',
+      :LETTERS  => 'letters',
+      :ROMAN    => 'roman',
+      :WORDS    => 'words',
+      :SEQUENCE => 'sequence'
     }.freeze
 
     TCASE = {
-      UPPER: 'upper',
-      LOWER: 'lower',
-      TITLE: 'title'
+      :UPPER => 'upper',
+      :LOWER => 'lower',
+      :TITLE => 'title'
     }.freeze
 
     # formats an integer using a preprocessed representation of the picture string
@@ -255,21 +255,21 @@ module Jsonata
                                 formatted_integer[pos..]
           end
         else
-          format[:grouping_separators].reverse.each do |separator|
+          format[:grouping_separators].reverse_each do |separator|
             pos = formatted_integer.length - separator[:position]
             formatted_integer = formatted_integer[0, pos] + separator[:character] + formatted_integer[pos..]
           end
         end
 
         if format[:ordinal]
-          suffix123 = { '1' => 'st', '2' => 'nd', '3' => 'rd' }
+          suffix123 = {'1' => 'st', '2' => 'nd', '3' => 'rd'}
           last_digit = formatted_integer[-1]
           suffix = suffix123[last_digit]
           suffix = 'th' if !suffix || (formatted_integer.length > 1 && formatted_integer[-2] == '1')
           formatted_integer += suffix
         end
       when FORMATS[:SEQUENCE]
-        raise Jsonata::Error.new('D3130', value: format[:token])
+        raise Jsonata::Error.new('D3130', :value => format[:token])
       end
       formatted_integer = "-#{formatted_integer}" if negative
 
@@ -287,10 +287,10 @@ module Jsonata
     # @returns analysed picture
     def analyse_integer_picture(picture)
       format = {
-        type: 'integer',
-        primary: FORMATS[:DECIMAL],
-        case: TCASE[:LOWER],
-        ordinal: false
+        :type    => 'integer',
+        :primary => FORMATS[:DECIMAL],
+        :case    => TCASE[:LOWER],
+        :ordinal => false
       }
 
       semicolon = picture.rindex(';')
@@ -330,7 +330,7 @@ module Jsonata
           # step though each char in the picture to determine the digit group
           digit = false
           DECIMAL_GROUPS.each do |group|
-            next unless code_point >= group && code_point <= group + 9
+            next unless code_point.between?(group, group + 9)
 
             # codepoint is part of this decimal group
             digit = true
@@ -352,8 +352,8 @@ module Jsonata
           else
             # neither a decimal-digit-sign ot optional-digit-sign, assume it is a grouping-separator-sign
             grouping_separators.push({
-                                       position: separator_position,
-                                       character: code_point.chr(Encoding::UTF_8)
+                                       :position  => separator_position,
+                                       :character => code_point.chr(Encoding::UTF_8)
                                      })
           end
         end
@@ -394,8 +394,8 @@ module Jsonata
           if regular.positive?
             format[:regular] = true
             format[:grouping_separators] = {
-              position: regular,
-              character: grouping_separators[0][:character]
+              :position  => regular,
+              :character => grouping_separators[0][:character]
             }
           else
             format[:regular] = false
@@ -426,8 +426,8 @@ module Jsonata
     def analyse_date_time_picture(picture)
       spec = []
       format = {
-        type: 'datetime',
-        parts: spec
+        :type  => 'datetime',
+        :parts => spec
       }
       add_literal = lambda do |start, end_pos|
         if end_pos > start
@@ -435,7 +435,7 @@ module Jsonata
           # replace any doubled ]] with single ]
           # what if there are instances of single ']' ? - the spec doesn't say
           literal = literal.gsub(']]', ']')
-          spec.push({ type: 'literal', value: literal })
+          spec.push({:type => 'literal', :value => literal})
         end
       end
 
@@ -447,7 +447,7 @@ module Jsonata
           if picture[pos + 1] == '['
             # literal [
             add_literal.call(start, pos)
-            spec.push({ type: 'literal', value: '[' })
+            spec.push({:type => 'literal', :value => '['})
             pos += 2
             start = pos
             next
@@ -463,12 +463,13 @@ module Jsonata
             # error - no closing bracket
             raise Jsonata::Error.new('D3135')
           end
+
           marker = picture[(start + 1)...pos]
           # whitespace within a variable marker is ignored (i.e. remove it)
           marker = marker.gsub(/\s+/, '')
           defn = {
-            type: 'marker',
-            component: marker[0] || '' # 1. The component specifier is always present and is always a single letter.
+            :type      => 'marker',
+            :component => marker[0] || '' # 1. The component specifier is always present and is always a single letter.
           }
           comma = marker.rindex(',') # 2. The width modifier may be recognized by the presence of a comma
           pres_mod = nil # the presentation modifiers
@@ -495,8 +496,8 @@ module Jsonata
               max = width_mod[(dash + 1)..]
             end
             width_def = {
-              min: parse_width.call(min),
-              max: parse_width.call(max)
+              :min => parse_width.call(min),
+              :max => parse_width.call(max)
             }
             defn[:width] = width_def
             pres_mod = marker[1...comma] || ''
@@ -523,7 +524,7 @@ module Jsonata
           end
           if defn[:presentation1].nil?
             # unknown component specifier
-            raise Jsonata::Error.new('D3132', value: defn[:component])
+            raise Jsonata::Error.new('D3132', :value => defn[:component])
           end
 
           if defn[:presentation1][0] == 'n'
@@ -577,9 +578,9 @@ module Jsonata
     # Equivalent of Date.UTC(year, month, day, hours, minutes, seconds, millis)
     def self.date_utc(year, month = 0, day = 1, hours = 0, minutes = 0, seconds = 0, millis = 0)
       values = [year, month, day, hours, minutes, seconds, millis]
-      return Float::NAN if values.any? { |v| v.nil? || (v.is_a?(Float) && !v.finite?) }
+      return Float::NAN if values.any? { |v| v.nil? || (v.kind_of?(Float) && !v.finite?) }
 
-      year, month, day, hours, minutes, seconds, millis = values.map { |v| v.truncate }
+      year, month, day, hours, minutes, seconds, millis = values.map(&:truncate)
       year += 1900 if year.between?(0, 99)
       year += month.div(12)
       month %= 12
@@ -599,7 +600,7 @@ module Jsonata
 
     # Equivalent of new Date(millis)
     def self.new_date(millis)
-      Time.at(Rational(millis.truncate, 1000), in: 'UTC')
+      Time.at(Rational(millis.truncate, 1000), :in => 'UTC')
     end
 
     # Equivalent of date.getTime()
@@ -626,12 +627,12 @@ module Jsonata
 
     def year_month(year, month)
       {
-        year: year,
-        month: month,
-        next_month: -> { month == 11 ? year_month(year + 1, 0) : year_month(year, month + 1) },
-        previous_month: -> { month.zero? ? year_month(year - 1, 11) : year_month(year, month - 1) },
-        next_year: -> { year_month(year + 1, month) },
-        previous_year: -> { year_month(year - 1, month) }
+        :year           => year,
+        :month          => month,
+        :next_month     => -> { month == 11 ? year_month(year + 1, 0) : year_month(year, month + 1) },
+        :previous_month => -> { month.zero? ? year_month(year - 1, 11) : year_month(year, month - 1) },
+        :next_year      => -> { year_month(year + 1, month) },
+        :previous_year  => -> { year_month(year - 1, month) }
       }
     end
 
@@ -779,7 +780,7 @@ module Jsonata
             elsif marker_spec[:component] == 'F'
               component_value = DAYS[component_value]
             else
-              raise Jsonata::Error.new('D3133', value: marker_spec[:component])
+              raise Jsonata::Error.new('D3133', :value => marker_spec[:component])
             end
             if marker_spec[:names] == TCASE[:UPPER]
               component_value = component_value.upcase
@@ -809,7 +810,7 @@ module Jsonata
             elsif [3, 4].include?(num_digits)
               component_value = _format_integer(offset, marker_spec[:integer_format])
             else
-              raise Jsonata::Error.new('D3134', value: num_digits)
+              raise Jsonata::Error.new('D3134', :value => num_digits)
             end
           end
           component_value = "+#{component_value}" if offset >= 0
@@ -860,7 +861,7 @@ module Jsonata
           elsif part[:component] == 'Z' || part[:component] == 'z'
             # timezone
             separator = nil
-            separator = part[:integer_format][:grouping_separators] unless part[:integer_format][:grouping_separators].is_a?(Array)
+            separator = part[:integer_format][:grouping_separators] unless part[:integer_format][:grouping_separators].kind_of?(Array)
             res[:regex] = +''
             res[:regex] << 'GMT' if part[:component] == 'z'
             res[:regex] << '[-+][0-9]+'
@@ -917,10 +918,10 @@ module Jsonata
                 end
               end
             elsif part[:component] == 'P'
-              lookup = { 'am' => 0, 'AM' => 0, 'pm' => 1, 'PM' => 1 }
+              lookup = {'am' => 0, 'AM' => 0, 'pm' => 1, 'PM' => 1}
             else
               # unsupported 'name' option for this component
-              raise Jsonata::Error.new('D3133', value: part[:component])
+              raise Jsonata::Error.new('D3133', :value => part[:component])
             end
             res[:parse] = ->(value) { lookup[value] }
           end
@@ -979,7 +980,7 @@ module Jsonata
             Utils.parse_int(digits)
           end
         when FORMATS[:SEQUENCE]
-          raise Jsonata::Error.new('D3130', value: format_spec[:token])
+          raise Jsonata::Error.new('D3130', :value => format_spec[:token])
         end
 
       end
@@ -1078,7 +1079,7 @@ module Jsonata
 
       is_type = lambda do |type|
         # shouldn't match any 0's, must match at least one 1
-        (~type & mask).zero? && !(type & mask).zero?
+        type.allbits?(mask) && type.anybits?(mask)
       end
 
       'YXMxWwdD'.each_char { |part| shift.call(components[part]) }
@@ -1158,6 +1159,7 @@ module Jsonata
         # parsing this format (ISO week date) not currently supported
         raise Jsonata::Error.new('D3136')
       end
+
       if time_b
         # 12hr to 24hr
         components['H'] = components['h'] == 12 ? 0 : components['h']
@@ -1212,7 +1214,7 @@ module Jsonata
       return nil if timestamp.nil?
 
       if picture.nil?
-        raise Jsonata::Error.new('D3110', value: timestamp) unless ISO8601_REGEX.match?(timestamp)
+        raise Jsonata::Error.new('D3110', :value => timestamp) unless ISO8601_REGEX.match?(timestamp)
 
         DateTime.date_parse(timestamp)
       else

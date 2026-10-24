@@ -23,7 +23,7 @@ module Jsonata
       @timestamp = enclosing_environment&.timestamp
       @async = enclosing_environment ? enclosing_environment.async : false
       @is_parallel_call = enclosing_environment ? enclosing_environment.is_parallel_call : false
-      @global = enclosing_environment ? enclosing_environment.global : { ancestry: [nil] }
+      @global = enclosing_environment ? enclosing_environment.global : {:ancestry => [nil]}
 
       return unless enclosing_environment
 
@@ -102,7 +102,7 @@ module Jsonata
       unless focus.nil?
         input = focus
         # if the input is a JSON array, then wrap it in a singleton sequence so it gets treated as a single input
-        if input.is_a?(Array) && !Utils.sequence?(input)
+        if input.kind_of?(Array) && !Utils.sequence?(input)
           input = create_sequence(input)
           input.outer_wrapper = true
         end
@@ -113,14 +113,14 @@ module Jsonata
       rescue Jsonata::Error => e
         # error parsing the expression passed to $eval
         Evaluator.populate_message(e)
-        raise Jsonata::Error.new('D3120', value: e.message, error: e)
+        raise Jsonata::Error.new('D3120', :value => e.message, :error => e)
       end
       begin
         result = Evaluator.evaluate(ast, input, environment)
       rescue Jsonata::Error => e
         # error evaluating the expression passed to $eval
         Evaluator.populate_message(e)
-        raise Jsonata::Error.new('D3121', value: e.message, error: e)
+        raise Jsonata::Error.new('D3121', :value => e.message, :error => e)
       end
 
       result
@@ -208,7 +208,7 @@ module Jsonata
         if result.empty?
           result = nil
         elsif result.length == 1
-          result = result.keep_singleton ? result : result[0]
+          result = result[0] unless result.keep_singleton
         end
       end
 
@@ -222,7 +222,7 @@ module Jsonata
       # expr is an array of steps
       # if the first step is a variable reference ($...), including root reference ($$),
       #   then the path is absolute rather than relative
-      input_sequence = if input.is_a?(Array) && expr[:steps][0][:type] != 'variable'
+      input_sequence = if input.kind_of?(Array) && expr[:steps][0][:type] != 'variable'
                          input
                        else
                          # if input is not an array, make it so
@@ -246,7 +246,7 @@ module Jsonata
           result_sequence = evaluate_step(step, input_sequence, environment, ii == expr[:steps].length - 1)
         end
 
-        break if !is_tuple_stream && (result_sequence.nil? || (result_sequence.is_a?(Array) && result_sequence.empty?))
+        break if !is_tuple_stream && (result_sequence.nil? || (result_sequence.kind_of?(Array) && result_sequence.empty?))
 
         input_sequence = result_sequence unless step.key?(:focus)
       end
@@ -265,11 +265,11 @@ module Jsonata
 
       if expr[:keep_singleton_array]
         # if the array is explicitly constructed in the expression and marked to promote singleton sequences to array
-        if result_sequence.is_a?(JArray) && result_sequence.cons && !result_sequence.sequence
+        if result_sequence.kind_of?(JArray) && result_sequence.cons && !result_sequence.sequence
           result_sequence = environment.base.create_sequence(result_sequence)
         end
-        if result_sequence.is_a?(Array)
-          result_sequence = JArray.new(result_sequence) unless result_sequence.is_a?(JArray)
+        if result_sequence.kind_of?(Array)
+          result_sequence = JArray.new(result_sequence) unless result_sequence.kind_of?(JArray)
           result_sequence.keep_singleton = true
         end
       end
@@ -310,12 +310,12 @@ module Jsonata
       end
 
       result_sequence = environment.base.create_sequence
-      if last_step && result.length == 1 && result[0].is_a?(Array) && !Utils.sequence?(result[0])
+      if last_step && result.length == 1 && result[0].kind_of?(Array) && !Utils.sequence?(result[0])
         result_sequence = result[0]
       else
         # flatten the sequence
         result.each do |res|
-          if !res.is_a?(Array) || (res.is_a?(JArray) && res.cons)
+          if !res.kind_of?(Array) || (res.kind_of?(JArray) && res.cons)
             # it's not an array - just push into the result sequence
             result_sequence.push(res)
           else
@@ -354,7 +354,7 @@ module Jsonata
           result = environment.base.create_sequence
           result.tuple_stream = true
           sorted.each_with_index do |item, ss|
-            tuple = { '@' => item }
+            tuple = {'@' => item}
             tuple[expr[:index]] = ss
             result.push(tuple)
           end
@@ -365,7 +365,7 @@ module Jsonata
 
       result = environment.base.create_sequence
       result.tuple_stream = true
-      tuple_bindings = input.map { |item| { '@' => item } } if tuple_bindings.nil?
+      tuple_bindings = input.map { |item| {'@' => item} } if tuple_bindings.nil?
 
       tuple_bindings.each do |binding|
         step_env = create_frame_from_tuple(environment, binding)
@@ -373,11 +373,11 @@ module Jsonata
         # res is the binding sequence for the output tuple stream
         next if res.nil?
 
-        res = [res] unless res.is_a?(Array)
+        res = [res] unless res.kind_of?(Array)
         res.each_with_index do |item, bb|
           tuple = {}
           tuple.merge!(binding)
-          if res.is_a?(JArray) && res.tuple_stream
+          if res.kind_of?(JArray) && res.tuple_stream
             tuple.merge!(item)
           else
             if expr[:focus]
@@ -404,8 +404,8 @@ module Jsonata
     # @returns Result after applying predicates
     def evaluate_filter(predicate, input, environment)
       results = environment.base.create_sequence
-      results.tuple_stream = true if input.is_a?(JArray) && input.tuple_stream
-      input = environment.base.create_sequence(input) unless input.is_a?(Array)
+      results.tuple_stream = true if input.kind_of?(JArray) && input.tuple_stream
+      input = environment.base.create_sequence(input) unless input.kind_of?(Array)
       if predicate[:type] == 'number'
         index = predicate[:value].floor # round it down
         if index.negative?
@@ -414,7 +414,7 @@ module Jsonata
         end
         item = index.negative? ? nil : input[index]
         unless item.nil?
-          if item.is_a?(Array)
+          if item.kind_of?(Array)
             results = item
           else
             results.push(item)
@@ -424,7 +424,7 @@ module Jsonata
         input.each_with_index do |item, index|
           context = item
           env = environment
-          if input.is_a?(JArray) && input.tuple_stream
+          if input.kind_of?(JArray) && input.tuple_stream
             context = item['@']
             env = create_frame_from_tuple(environment, item)
           end
@@ -501,7 +501,7 @@ module Jsonata
         elsif Utils.numeric?(result)
           result = -result
         else
-          raise Jsonata::Error.new('D1002', position: expr[:position], token: expr[:value], value: result)
+          raise Jsonata::Error.new('D1002', :position => expr[:position], :token => expr[:value], :value => result)
         end
       when '['
         # array constructor - evaluate each item
@@ -520,7 +520,7 @@ module Jsonata
           end
         end
         if expr[:consarray]
-          result = JArray.new(result) unless result.is_a?(JArray)
+          result = JArray.new(result) unless result.kind_of?(JArray)
           result.cons = true
         end
       when '{'
@@ -545,11 +545,11 @@ module Jsonata
     def evaluate_wildcard(_expr, input, environment)
       focus = Focus.new(environment)
       results = focus.create_sequence
-      input = input[0] if input.is_a?(JArray) && input.outer_wrapper && !input.empty?
-      if input.is_a?(Hash) || input.is_a?(Array)
+      input = input[0] if input.kind_of?(JArray) && input.outer_wrapper && !input.empty?
+      if input.kind_of?(Hash) || input.kind_of?(Array)
         Utils.keys(input).each do |key|
-          value = input.is_a?(Array) ? input[key.to_i] : input[key]
-          if value.is_a?(Array)
+          value = input.kind_of?(Array) ? input[key.to_i] : input[key]
+          if value.kind_of?(Array)
             value = flatten(value)
             results = focus.append(results, value)
           else
@@ -566,7 +566,7 @@ module Jsonata
     # @param arg - the array to be flatten
     # @param flattened - carries the flattened array - if not defined, will initialize to []
     def flatten(arg, flattened = [])
-      if arg.is_a?(Array)
+      if arg.kind_of?(Array)
         arg.each do |item|
           flatten(item, flattened)
         end
@@ -595,12 +595,12 @@ module Jsonata
     # Recurse through descendants
     def recurse_descendants(input, results)
       # this is the equivalent of //* in XPath
-      results.push(input) unless input.is_a?(Array)
-      if input.is_a?(Array)
+      results.push(input) unless input.kind_of?(Array)
+      if input.kind_of?(Array)
         input.each do |member|
           recurse_descendants(member, results)
         end
-      elsif input.is_a?(Hash)
+      elsif input.kind_of?(Hash)
         Utils.keys(input).each do |key|
           recurse_descendants(input[key], results)
         end
@@ -609,8 +609,8 @@ module Jsonata
 
     # Evaluate numeric expression against input data
     def evaluate_numeric_expression(lhs, rhs, op)
-      raise Jsonata::Error.new('T2001', value: lhs) if !lhs.nil? && !Utils.numeric?(lhs)
-      raise Jsonata::Error.new('T2002', value: rhs) if !rhs.nil? && !Utils.numeric?(rhs)
+      raise Jsonata::Error.new('T2001', :value => lhs) if !lhs.nil? && !Utils.numeric?(lhs)
+      raise Jsonata::Error.new('T2002', :value => rhs) if !rhs.nil? && !Utils.numeric?(rhs)
 
       # if either side is undefined, the result is undefined
       return nil if lhs.nil? || rhs.nil?
@@ -651,14 +651,14 @@ module Jsonata
 
       # if either aa or bb are not comparable (string or numeric) values, then throw an error
       unless lcomparable && rcomparable
-        raise Jsonata::Error.new('T2010', value: %w[string number].include?(ltype) ? rhs : lhs)
+        raise Jsonata::Error.new('T2010', :value => %w[string number].include?(ltype) ? rhs : lhs)
       end
 
       # if either side is undefined, the result is undefined
       return nil if ltype == 'undefined' || rtype == 'undefined'
 
       # if aa and bb are not of the same type
-      raise Jsonata::Error.new('T2009', value: lhs, value2: rhs) if ltype != rtype
+      raise Jsonata::Error.new('T2009', :value => lhs, :value2 => rhs) if ltype != rtype
 
       case op
       when '<' then lhs < rhs
@@ -674,7 +674,7 @@ module Jsonata
       # if either side is undefined, the result is false
       return false if lhs.nil? || rhs.nil?
 
-      rhs = [rhs] unless rhs.is_a?(Array)
+      rhs = [rhs] unless rhs.kind_of?(Array)
 
       rhs.any? { |item| Utils.strict_equal?(item, lhs) }
     end
@@ -711,10 +711,10 @@ module Jsonata
     def evaluate_group_expression(expr, input, environment)
       result = {}
       groups = {}
-      reduce = input.is_a?(JArray) && input.tuple_stream ? true : false
+      reduce = input.kind_of?(JArray) && input.tuple_stream ? true : false
       focus = Focus.new(environment)
       # group the input sequence by 'key' expression
-      input = focus.create_sequence(input) unless input.is_a?(Array)
+      input = focus.create_sequence(input) unless input.kind_of?(Array)
       # if the array is empty, add an undefined entry to enable literal JSON object to be generated
       input.push(nil) if input.empty? && !reduce
 
@@ -723,19 +723,19 @@ module Jsonata
         expr[:lhs].each_with_index do |pair, pair_index|
           key = evaluate(pair[0], reduce ? item['@'] : item, env)
           # key has to be a string
-          if !key.is_a?(String) && !key.nil?
-            raise Jsonata::Error.new('T1003', position: expr[:position], value: key)
+          if !key.kind_of?(String) && !key.nil?
+            raise Jsonata::Error.new('T1003', :position => expr[:position], :value => key)
           end
 
           next if key.nil?
 
-          entry = { data: item, expr_index: pair_index }
+          entry = {:data => item, :expr_index => pair_index}
           if groups.key?(key)
             # a value already exists in this slot
             if groups[key][:expr_index] != pair_index
               # this key has been generated by another expression in this group
               # when multiple key expressions evaluate to the same key, then error D1009 must be thrown
-              raise Jsonata::Error.new('D1009', position: expr[:position], value: key)
+              raise Jsonata::Error.new('D1009', :position => expr[:position], :value => key)
             end
 
             # append it as an array
@@ -768,7 +768,7 @@ module Jsonata
     end
 
     def reduce_tuple_stream(tuple_stream, environment)
-      return tuple_stream unless tuple_stream.is_a?(Array)
+      return tuple_stream unless tuple_stream.kind_of?(Array)
 
       result = {}
       focus = Focus.new(environment)
@@ -784,8 +784,8 @@ module Jsonata
     # Evaluate range expression against input data
     # @returns Resultant array
     def evaluate_range_expression(lhs, rhs, environment)
-      raise Jsonata::Error.new('T2003', value: lhs) if !lhs.nil? && !Utils.integer?(lhs)
-      raise Jsonata::Error.new('T2004', value: rhs) if !rhs.nil? && !Utils.integer?(rhs)
+      raise Jsonata::Error.new('T2003', :value => lhs) if !lhs.nil? && !Utils.integer?(lhs)
+      raise Jsonata::Error.new('T2004', :value => rhs) if !rhs.nil? && !Utils.integer?(rhs)
 
       # if either side is undefined, the result is undefined
       return nil if lhs.nil? || rhs.nil?
@@ -797,11 +797,11 @@ module Jsonata
       # this is an implementation defined limit to protect against
       # memory and performance issues.  This value may increase in the future.
       size = (rhs - lhs + 1).to_i
-      raise Jsonata::Error.new('D2014', value: size) if size > 1e7
+      raise Jsonata::Error.new('D2014', :value => size) if size > 1e7
 
       options = environment.base.options
       if options && options[:sequence] && size > options[:sequence]
-        raise Jsonata::Error.new('D2015', value: size)
+        raise Jsonata::Error.new('D2015', :value => size)
       end
 
       result = JArray.new((lhs.to_i..rhs.to_i).to_a)
@@ -862,9 +862,9 @@ module Jsonata
         else
           last_index = match.end(0)
           result = {
-            'match' => match[0],
-            'start' => match.begin(0),
-            'end' => match.end(0),
+            'match'  => match[0],
+            'start'  => match.begin(0),
+            'end'    => match.end(0),
             'groups' => match.captures
           }
           result['next'] = lambda do
@@ -874,7 +874,7 @@ module Jsonata
               nxt = closure.call(str, last_index)
               if nxt && nxt['match'] == ''
                 # matches zero length string; this will never progress
-                raise Jsonata::Error.new('D1004', position: expr[:position], value: expr[:value].source)
+                raise Jsonata::Error.new('D1004', :position => expr[:position], :value => expr[:value].source)
               end
 
               nxt
@@ -892,7 +892,7 @@ module Jsonata
       # lookup the variable value in the environment
       # if the variable name is empty string, then it refers to context value
       if expr[:value] == ''
-        input.is_a?(JArray) && input.outer_wrapper ? input[0] : input
+        input.kind_of?(JArray) && input.outer_wrapper ? input[0] : input
       else
         environment.lookup(expr[:value])
       end
@@ -904,7 +904,7 @@ module Jsonata
     def evaluate_sort_expression(expr, input, environment)
       # evaluate the lhs, then sort the results in order according to rhs expression
       lhs = input
-      is_tuple_sort = input.is_a?(JArray) && input.tuple_stream ? true : false
+      is_tuple_sort = input.kind_of?(JArray) && input.tuple_stream ? true : false
 
       # sort the lhs array
       # use comparator function
@@ -946,13 +946,13 @@ module Jsonata
           end
 
           # if aa or bb are not string or numeric values, then throw an error
-          unless %w[string number].include?(atype) && %w[string number].include?(btype)
-            raise Jsonata::Error.new('T2008', position: expr[:position],
-                                              value: %w[string number].include?(atype) ? bb : aa)
+          if !(atype == 'string' || atype == 'number') || !(btype == 'string' || btype == 'number')
+            raise Jsonata::Error.new('T2008', :position => expr[:position],
+                                              :value    => !(atype == 'string' || atype == 'number') ? aa : bb)
           end
 
           # if aa and bb are not of the same type
-          raise Jsonata::Error.new('T2007', position: expr[:position], value: aa, value2: bb) if atype != btype
+          raise Jsonata::Error.new('T2007', :position => expr[:position], :value => aa, :value2 => bb) if atype != btype
 
           # both the same - move on to next term
           next if aa == bb
@@ -982,24 +982,25 @@ module Jsonata
         clone_function = environment.lookup('clone')
         unless Utils.function?(clone_function)
           # throw type error
-          raise Jsonata::Error.new('T2013', position: expr[:position])
+          raise Jsonata::Error.new('T2013', :position => expr[:position])
         end
+
         result = apply(clone_function, [obj], nil, environment)
         matches = evaluate(expr[:pattern], result, environment)
         unless matches.nil?
-          matches = [matches] unless matches.is_a?(Array)
+          matches = [matches] unless matches.kind_of?(Array)
           matches.each do |match|
             # evaluate the update value for each match
             update = evaluate(expr[:update], match, environment)
             # update must be an object
             unless update.nil?
-              unless update.is_a?(Hash)
+              unless update.kind_of?(Hash)
                 # throw type error
-                raise Jsonata::Error.new('T2011', position: expr[:update][:position], value: update)
+                raise Jsonata::Error.new('T2011', :position => expr[:update][:position], :value => update)
               end
 
               # merge the update
-              if match.is_a?(Hash)
+              if match.kind_of?(Hash)
                 Utils.keys(update).each do |prop|
                   match[prop] = update[prop]
                 end
@@ -1013,13 +1014,14 @@ module Jsonata
             next if deletions.nil?
 
             val = deletions
-            deletions = [deletions] unless deletions.is_a?(Array)
+            deletions = [deletions] unless deletions.kind_of?(Array)
             unless Utils.array_of_strings?(deletions)
               # throw type error
-              raise Jsonata::Error.new('T2012', position: expr[:delete][:position], value: val)
+              raise Jsonata::Error.new('T2012', :position => expr[:delete][:position], :value => val)
             end
+
             deletions.each do |deletion|
-              match.delete(deletion) if match.is_a?(Hash)
+              match.delete(deletion) if match.kind_of?(Hash)
             end
           end
         end
@@ -1035,11 +1037,11 @@ module Jsonata
       lhs = evaluate(expr[:lhs], input, environment)
       if expr[:rhs][:type] == 'function'
         # this is a function _invocation_; invoke it with lhs expression as the first argument
-        evaluate_function(expr[:rhs], input, environment, { context: lhs })
+        evaluate_function(expr[:rhs], input, environment, {:context => lhs})
       else
         func = evaluate(expr[:rhs], input, environment)
 
-        raise Jsonata::Error.new('T2006', position: expr[:position], value: func) unless Utils.function?(func)
+        raise Jsonata::Error.new('T2006', :position => expr[:position], :value => func) unless Utils.function?(func)
 
         if Utils.function?(lhs)
           # this is function chaining (func1 ~> func2)
@@ -1063,7 +1065,7 @@ module Jsonata
       if proc.nil? && expr[:procedure][:type] == 'path' &&
          Utils.truthy?(environment.lookup(expr[:procedure][:steps][0][:value]))
         # help the user out here if they simply forgot the leading $
-        raise Jsonata::Error.new('T1005', position: expr[:position], token: expr[:procedure][:steps][0][:value])
+        raise Jsonata::Error.new('T1005', :position => expr[:position], :token => expr[:procedure][:steps][0][:value])
       end
 
       evaluated_args = []
@@ -1085,7 +1087,7 @@ module Jsonata
       # apply the procedure
       proc_name = expr[:procedure][:type] == 'path' ? expr[:procedure][:steps][0][:value] : expr[:procedure][:value]
       begin
-        if proc.is_a?(Lambda) || proc.is_a?(NativeFunction)
+        if proc.kind_of?(Lambda) || proc.kind_of?(NativeFunction)
           proc.token = proc_name
           proc.position = expr[:position]
         end
@@ -1110,7 +1112,7 @@ module Jsonata
         # the function returned a tail-call thunk
         # unpack it, evaluate its arguments, and apply the tail call
         nxt = evaluate(result.body[:procedure], result.input, result.environment)
-        if nxt.is_a?(Lambda) || nxt.is_a?(NativeFunction)
+        if nxt.kind_of?(Lambda) || nxt.kind_of?(NativeFunction)
           nxt.token = result.body[:procedure][:value] if result.body[:procedure][:type] == 'variable'
           nxt.position = result.body[:procedure][:position]
         end
@@ -1129,13 +1131,13 @@ module Jsonata
     # @returns Result of procedure
     def apply_inner(proc, args, input, environment)
       validated_args = args
-      if Utils.truthy?(proc) && (proc.is_a?(Lambda) || proc.is_a?(NativeFunction))
+      if Utils.truthy?(proc) && (proc.kind_of?(Lambda) || proc.kind_of?(NativeFunction))
         validated_args = validate_arguments(proc.signature, args, input)
       end
 
       if Utils.lambda?(proc)
         apply_procedure(proc, validated_args)
-      elsif proc.is_a?(NativeFunction)
+      elsif proc.kind_of?(NativeFunction)
         focus = Focus.new(environment, input)
         # the `focus` is passed in as the `this` for the invoked function
         Utils.invoke(proc.implementation, validated_args, focus)
@@ -1146,7 +1148,7 @@ module Jsonata
         raise Jsonata::Error.new('T1006')
       end
     rescue Jsonata::Error => e
-      if proc.is_a?(Lambda) || proc.is_a?(NativeFunction)
+      if proc.kind_of?(Lambda) || proc.kind_of?(NativeFunction)
         e.token = proc.token if e.token.nil? && !proc.token.nil?
         e.position = proc.position if Utils.truthy?(proc.position)
       end
@@ -1157,11 +1159,11 @@ module Jsonata
     def evaluate_lambda(expr, input, environment)
       # make a function (closure)
       procedure = Lambda.new(
-        input: input,
-        environment: environment,
-        arguments: expr[:arguments],
-        signature: expr[:signature],
-        body: expr[:body]
+        :input       => input,
+        :environment => environment,
+        :arguments   => expr[:arguments],
+        :signature   => expr[:signature],
+        :body        => expr[:body]
       )
       procedure.thunk = true if expr[:thunk] == true
       procedure.apply_proc = lambda do |this, args|
@@ -1186,21 +1188,22 @@ module Jsonata
       if proc.nil? && expr[:procedure][:type] == 'path' &&
          Utils.truthy?(environment.lookup(expr[:procedure][:steps][0][:value]))
         # help the user out here if they simply forgot the leading $
-        raise Jsonata::Error.new('T1007', position: expr[:position], token: expr[:procedure][:steps][0][:value])
+        raise Jsonata::Error.new('T1007', :position => expr[:position], :token => expr[:procedure][:steps][0][:value])
       end
+
       if Utils.lambda?(proc)
         partial_apply_procedure(proc, evaluated_args, environment)
-      elsif proc.is_a?(NativeFunction)
+      elsif proc.kind_of?(NativeFunction)
         partial_apply_native_function(proc.implementation, evaluated_args, environment)
       elsif Utils.callable?(proc)
         partial_apply_native_function(proc, evaluated_args, environment)
       else
-        raise Jsonata::Error.new('T1008', position: expr[:position],
-                                          token: if expr[:procedure][:type] == 'path'
-                                                   expr[:procedure][:steps][0][:value]
-                                                 else
-                                                   expr[:procedure][:value]
-                                                 end)
+        raise Jsonata::Error.new('T1008', :position => expr[:position],
+                                          :token    => if expr[:procedure][:type] == 'path'
+                                                         expr[:procedure][:steps][0][:value]
+                                                       else
+                                                         expr[:procedure][:value]
+                                                       end)
       end
     end
 
@@ -1222,7 +1225,7 @@ module Jsonata
       proc.arguments.each_with_index do |param, index|
         env.bind(param[:value], args[index])
       end
-      if proc.body.is_a?(Hash)
+      if proc.body.kind_of?(Hash)
         evaluate(proc.body, proc.input, env)
       else
         # this is a lambda that wraps a native function - generated by partially evaluating a native
@@ -1234,23 +1237,23 @@ module Jsonata
     # @param proc - Procedure (a Lambda, or the AST of a lambda wrapping a native function)
     # @returns Result of partially applied procedure
     def partial_apply_procedure(proc, args, environment)
-      proc = Lambda.new(arguments: proc[:arguments], body: proc[:body]) if proc.is_a?(Hash)
+      proc = Lambda.new(:arguments => proc[:arguments], :body => proc[:body]) if proc.kind_of?(Hash)
       # create a closure, bind the supplied parameters and return a function that takes the remaining (?) parameters
       env = create_frame(proc.environment || environment)
       unbound_args = []
       proc.arguments.each_with_index do |param, index|
         arg = args[index]
-        if arg.is_a?(Hash) && arg[:type] == 'operator' && arg[:value] == '?'
+        if arg.kind_of?(Hash) && arg[:type] == 'operator' && arg[:value] == '?'
           unbound_args.push(param)
         else
           env.bind(param[:value], arg)
         end
       end
       Lambda.new(
-        input: proc.input,
-        environment: env,
-        arguments: unbound_args,
-        body: proc.body
+        :input       => proc.input,
+        :environment => env,
+        :arguments   => unbound_args,
+        :body        => proc.body
       )
     end
 
@@ -1453,69 +1456,69 @@ module Jsonata
 
     # Function registration
     {
-      'sum' => [:sum, '<a<n>:n>'],
-      'count' => [:count, '<a:n>'],
-      'max' => [:max, '<a<n>:n>'],
-      'min' => [:min, '<a<n>:n>'],
-      'average' => [:average, '<a<n>:n>'],
-      'string' => [:string, '<x-b?:s>'],
-      'substring' => [:substring, '<s-nn?:s>'],
-      'substringBefore' => [:substring_before, '<s-s:s>'],
-      'substringAfter' => [:substring_after, '<s-s:s>'],
-      'lowercase' => [:lowercase, '<s-:s>'],
-      'uppercase' => [:uppercase, '<s-:s>'],
-      'length' => [:length, '<s-:n>'],
-      'trim' => [:trim, '<s-:s>'],
-      'pad' => [:pad, '<s-ns?:s>'],
-      'match' => [:match, '<s-f<s:o>n?:a<o>>'],
-      'contains' => [:contains, '<s-(sf):b>'], # TODO <s-(sf<s:o>):b>
-      'replace' => [:replace, '<s-(sf)(sf)n?:s>'], # TODO <s-(sf<s:o>)(sf<o:s>)n?:s>
-      'split' => [:split, '<s-(sf)n?:a<s>>'], # TODO <s-(sf<s:o>)n?:a<s>>
-      'join' => [:join, '<a<s>s?:s>'],
-      'formatNumber' => [:format_number, '<n-so?:s>'],
-      'formatBase' => [:format_base, '<n-n?:s>'],
-      'formatInteger' => [:format_integer, '<n-s:s>'],
-      'parseInteger' => [:parse_integer, '<s-s:n>'],
-      'number' => [:number, '<(nsb)-:n>'],
-      'floor' => [:floor, '<n-:n>'],
-      'ceil' => [:ceil, '<n-:n>'],
-      'round' => [:round, '<n-n?:n>'],
-      'abs' => [:abs, '<n-:n>'],
-      'sqrt' => [:sqrt, '<n-:n>'],
-      'power' => [:power, '<n-n:n>'],
-      'random' => [:random, '<:n>'],
-      'boolean' => [:boolean, '<x-:b>'],
-      'not' => [:not, '<x-:b>'],
-      'map' => [:map, '<af>'],
-      'zip' => [:zip, '<a+>'],
-      'filter' => [:filter, '<af>'],
-      'single' => [:single, '<af?>'],
-      'reduce' => [:fold_left, '<afj?:j>'], # TODO <f<jj:j>a<j>j?:j>
-      'sift' => [:sift, '<o-f?:o>'],
-      'keys' => [:keys, '<x-:a<s>>'],
-      'lookup' => [:lookup, '<x-s:x>'],
-      'append' => [:append, '<xx:a>'],
-      'exists' => [:exists, '<x:b>'],
-      'spread' => [:spread, '<x-:a<o>>'],
-      'merge' => [:merge, '<a<o>:o>'],
-      'reverse' => [:reverse, '<a:a>'],
-      'each' => [:each, '<o-f:a>'],
-      'error' => [:error, '<s?:x>'],
-      'assert' => [:assert, '<bs?:x>'],
-      'type' => [:type, '<x:s>'],
-      'sort' => [:sort, '<af?:a>'],
-      'shuffle' => [:shuffle, '<a:a>'],
-      'distinct' => [:distinct, '<x:x>'],
-      'base64encode' => [:base64encode, '<s-:s>'],
-      'base64decode' => [:base64decode, '<s-:s>'],
+      'sum'                => [:sum, '<a<n>:n>'],
+      'count'              => [:count, '<a:n>'],
+      'max'                => [:max, '<a<n>:n>'],
+      'min'                => [:min, '<a<n>:n>'],
+      'average'            => [:average, '<a<n>:n>'],
+      'string'             => [:string, '<x-b?:s>'],
+      'substring'          => [:substring, '<s-nn?:s>'],
+      'substringBefore'    => [:substring_before, '<s-s:s>'],
+      'substringAfter'     => [:substring_after, '<s-s:s>'],
+      'lowercase'          => [:lowercase, '<s-:s>'],
+      'uppercase'          => [:uppercase, '<s-:s>'],
+      'length'             => [:length, '<s-:n>'],
+      'trim'               => [:trim, '<s-:s>'],
+      'pad'                => [:pad, '<s-ns?:s>'],
+      'match'              => [:match, '<s-f<s:o>n?:a<o>>'],
+      'contains'           => [:contains, '<s-(sf):b>'], # TODO <s-(sf<s:o>):b>
+      'replace'            => [:replace, '<s-(sf)(sf)n?:s>'], # TODO <s-(sf<s:o>)(sf<o:s>)n?:s>
+      'split'              => [:split, '<s-(sf)n?:a<s>>'], # TODO <s-(sf<s:o>)n?:a<s>>
+      'join'               => [:join, '<a<s>s?:s>'],
+      'formatNumber'       => [:format_number, '<n-so?:s>'],
+      'formatBase'         => [:format_base, '<n-n?:s>'],
+      'formatInteger'      => [:format_integer, '<n-s:s>'],
+      'parseInteger'       => [:parse_integer, '<s-s:n>'],
+      'number'             => [:number, '<(nsb)-:n>'],
+      'floor'              => [:floor, '<n-:n>'],
+      'ceil'               => [:ceil, '<n-:n>'],
+      'round'              => [:round, '<n-n?:n>'],
+      'abs'                => [:abs, '<n-:n>'],
+      'sqrt'               => [:sqrt, '<n-:n>'],
+      'power'              => [:power, '<n-n:n>'],
+      'random'             => [:random, '<:n>'],
+      'boolean'            => [:boolean, '<x-:b>'],
+      'not'                => [:not, '<x-:b>'],
+      'map'                => [:map, '<af>'],
+      'zip'                => [:zip, '<a+>'],
+      'filter'             => [:filter, '<af>'],
+      'single'             => [:single, '<af?>'],
+      'reduce'             => [:fold_left, '<afj?:j>'], # TODO <f<jj:j>a<j>j?:j>
+      'sift'               => [:sift, '<o-f?:o>'],
+      'keys'               => [:keys, '<x-:a<s>>'],
+      'lookup'             => [:lookup, '<x-s:x>'],
+      'append'             => [:append, '<xx:a>'],
+      'exists'             => [:exists, '<x:b>'],
+      'spread'             => [:spread, '<x-:a<o>>'],
+      'merge'              => [:merge, '<a<o>:o>'],
+      'reverse'            => [:reverse, '<a:a>'],
+      'each'               => [:each, '<o-f:a>'],
+      'error'              => [:error, '<s?:x>'],
+      'assert'             => [:assert, '<bs?:x>'],
+      'type'               => [:type, '<x:s>'],
+      'sort'               => [:sort, '<af?:a>'],
+      'shuffle'            => [:shuffle, '<a:a>'],
+      'distinct'           => [:distinct, '<x:x>'],
+      'base64encode'       => [:base64encode, '<s-:s>'],
+      'base64decode'       => [:base64decode, '<s-:s>'],
       'encodeUrlComponent' => [:encode_url_component, '<s-:s>'],
-      'encodeUrl' => [:encode_url, '<s-:s>'],
+      'encodeUrl'          => [:encode_url, '<s-:s>'],
       'decodeUrlComponent' => [:decode_url_component, '<s-:s>'],
-      'decodeUrl' => [:decode_url, '<s-:s>'],
-      'eval' => [:function_eval, '<sx?:x>'],
-      'toMillis' => [:to_millis, '<s-s?:n>'],
-      'fromMillis' => [:from_millis, '<n-s?s?:s>'],
-      'clone' => [:function_clone, '<(oa)-:o>']
+      'decodeUrl'          => [:decode_url, '<s-:s>'],
+      'eval'               => [:function_eval, '<sx?:x>'],
+      'toMillis'           => [:to_millis, '<s-s?:n>'],
+      'fromMillis'         => [:from_millis, '<n-s?s?:s>'],
+      'clone'              => [:function_clone, '<(oa)-:o>']
     }.each do |name, (method, signature)|
       STATIC_FRAME.bind(name, define_function(Focus.instance_method(method), signature))
     end
@@ -1555,8 +1558,8 @@ module Jsonata
     # (JSON null and undefined are both returned as nil)
     # @param input - Input data to evaluate against
     # @param bindings - Hash of variable bindings
-    def evaluate(input = nil, bindings = nil, &callback)
-      Utils.to_ruby(evaluate_raw(input.nil? ? nil : Utils.from_ruby(input), bindings, &callback))
+    def evaluate(input = nil, bindings = nil, &)
+      Utils.to_ruby(evaluate_raw(input.nil? ? nil : Utils.from_ruby(input), bindings, &))
     end
 
     # Evaluates the expression, returning the internal representation of the result, in which JSON null is
@@ -1565,7 +1568,7 @@ module Jsonata
     def evaluate_raw(input = nil, bindings = nil, &callback)
       # throw if the expression compiled with syntax errors
       unless @errors.nil?
-        err = Jsonata::Error.new('S0500', position: 0)
+        err = Jsonata::Error.new('S0500', :position => 0)
         Evaluator.populate_message(err) # possible side-effects on `err`
         raise err
       end
@@ -1574,7 +1577,7 @@ module Jsonata
 
       # add any variable bindings may have been passed in
       bindings&.each do |name, value|
-        exec_env.bind(name.is_a?(Symbol) ? name.to_s : name, value.nil? ? nil : Utils.from_ruby(value))
+        exec_env.bind(name.kind_of?(Symbol) ? name.to_s : name, value.nil? ? nil : Utils.from_ruby(value))
       end
 
       # put the input document into the environment as the root object
@@ -1589,7 +1592,7 @@ module Jsonata
       exec_env.base = exec_env
 
       # if the input is a JSON array, then wrap it in a singleton sequence so it gets treated as a single input
-      if input.is_a?(Array) && !Utils.sequence?(input)
+      if input.kind_of?(Array) && !Utils.sequence?(input)
         input = exec_env.create_sequence(input)
         input.outer_wrapper = true
       end
@@ -1600,11 +1603,11 @@ module Jsonata
                               lambda do
                                 if options[:stack].to_i.positive? && exec_env.depth > options[:stack]
                                   # stack too deep
-                                  raise Jsonata::Error.new('D1011', value: options[:stack])
+                                  raise Jsonata::Error.new('D1011', :value => options[:stack])
                                 end
                                 if options[:timeout].to_i.positive? && current_millis - time > options[:timeout]
                                   # expression has run for too long
-                                  raise Jsonata::Error.new('D1012', value: options[:timeout])
+                                  raise Jsonata::Error.new('D1012', :value => options[:timeout])
                                 end
                               end
                             else
@@ -1631,7 +1634,7 @@ module Jsonata
     end
 
     def assign(name, value)
-      @environment.bind(name.is_a?(Symbol) && !name.to_s.start_with?('jsonata.') ? name.to_s : name,
+      @environment.bind(name.kind_of?(Symbol) && !name.to_s.start_with?('jsonata.') ? name.to_s : name,
                         value.nil? ? nil : Utils.from_ruby(value))
     end
 
@@ -1640,23 +1643,20 @@ module Jsonata
     #   expr.register_function('add', ->(a, b) { a + b }, '<nn:n>')
     #   expr.register_function('greet', '<s:s>') { |name| "Hello, #{name}" }
     def register_function(name, implementation = nil, signature = nil, &block)
-      implementation, signature = block, implementation if block && (implementation.nil? || implementation.is_a?(String))
+      if block && (implementation.nil? || implementation.kind_of?(String))
+        signature = implementation
+        implementation = block
+      end
       func = Evaluator.define_function(implementation, signature)
       @environment.bind(name.to_s, func)
     end
 
-    def ast
-      @ast
-    end
-
-    def errors
-      @errors
-    end
+    attr_reader :ast, :errors
 
     private
 
     def current_time
-      Time.at(Rational(current_millis, 1000), in: 'UTC')
+      Time.at(Rational(current_millis, 1000), :in => 'UTC')
     end
 
     def current_millis

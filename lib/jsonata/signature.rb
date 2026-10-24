@@ -86,7 +86,7 @@ module Jsonata
             param.regex = "[#{choice}m]"
           else
             # TODO harder
-            raise Jsonata::Error.new('S0402', value: choice, offset: position)
+            raise Jsonata::Error.new('S0402', :value => choice, :offset => position)
           end
           param.type = "(#{choice})"
           position = end_paren
@@ -98,7 +98,7 @@ module Jsonata
             prev_param.subtype = signature[(position + 1)...end_pos]
             position = end_pos
           else
-            raise Jsonata::Error.new('S0401', value: prev_param.type, offset: position)
+            raise Jsonata::Error.new('S0401', :value => prev_param.type, :offset => position)
           end
         end
         position += 1
@@ -127,7 +127,7 @@ module Jsonata
               validated_args.push(context)
             else
               # context value not compatible with this argument
-              raise Jsonata::Error.new('T0411', value: context, index: arg_index + 1)
+              raise Jsonata::Error.new('T0411', :value => context, :index => arg_index + 1)
             end
           else
             validated_args.push(arg)
@@ -161,8 +161,8 @@ module Jsonata
                   end
                 end
                 unless array_ok
-                  raise Jsonata::Error.new('T0412', value: arg, index: arg_index + 1,
-                                                    type: ARRAY_SIGNATURE_MAPPING[param.subtype])
+                  raise Jsonata::Error.new('T0412', :value => arg, :index => arg_index + 1,
+                                                    :type => ARRAY_SIGNATURE_MAPPING[param.subtype])
                 end
                 # the function expects an array. If it's not one, make it so
                 arg = [arg] if single != 'a'
@@ -222,14 +222,14 @@ module Jsonata
         match = Regexp.new(partial_pattern).match(bad_sig)
         if match.nil?
           # failed here
-          raise Jsonata::Error.new('T0410', value: bad_args[good_to], index: good_to + 1)
+          raise Jsonata::Error.new('T0410', :value => bad_args[good_to], :index => good_to + 1)
         end
 
         good_to = match[0].length
       end
       # if it got this far, it's probably because of extraneous arguments (we
       # haven't added the trailing '$' in the regex yet.
-      raise Jsonata::Error.new('T0410', value: bad_args[good_to], index: good_to + 1)
+      raise Jsonata::Error.new('T0410', :value => bad_args[good_to], :index => good_to + 1)
     end
   end
 end

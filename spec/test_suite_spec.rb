@@ -70,7 +70,7 @@ module TestSuite
     filenames = Dir.children(dir).select { |name| name.end_with?('.json') }.sort
     filenames.flat_map do |name|
       spec = read_json(dir, name)
-      specs = spec.is_a?(Array) ? spec : [spec]
+      specs = spec.kind_of?(Array) ? spec : [spec]
       specs.each do |item|
         item['description'] ||= name
         # if the testcase references an external jsonata file, read it in
@@ -105,13 +105,13 @@ module TestSuite
         # stack too deep
         raise Jsonata::Error.new(
           'U1001',
-          message: 'Stack overflow error: Check for non-terminating recursive function.  ' \
-                   'Consider rewriting as tail-recursive.'
+          :message => 'Stack overflow error: Check for non-terminating recursive function.  ' \
+                      'Consider rewriting as tail-recursive.'
         )
       end
       if Process.clock_gettime(Process::CLOCK_MONOTONIC, :millisecond) - time > timeout
         # expression has run for too long
-        raise Jsonata::Error.new('U1001', message: 'Expression evaluation timeout: Check for infinite loop')
+        raise Jsonata::Error.new('U1001', :message => 'Expression evaluation timeout: Check for infinite loop')
       end
     end
 

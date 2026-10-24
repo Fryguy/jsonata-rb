@@ -1,0 +1,48 @@
+# This is not a Rails project, and the suggested corrections (e.g. blank?) need ActiveSupport.
+Rails:
+  Enabled: false
+
+# lib/ is ported from jsonata-js and keeps the structure, names and comments of the JS code, so it stays
+# diffable with upstream (see AGENTS.md). These cops restructure the code or rename things away from the JS.
+Lint/DuplicateBranch:
+  Enabled: false
+Naming/MethodParameterName:
+  Enabled: false
+Naming/PredicateMethod:
+  Enabled: false
+Style/CaseLikeIf:
+  Enabled: false
+Style/CommentAnnotation:
+  Enabled: false
+Style/ConditionalAssignment:
+  Enabled: false
+Style/EmptyElse:
+  AllowComments: true
+Style/GuardClause:
+  Enabled: false
+Style/IdenticalConditionalBranches:
+  Enabled: false
+Style/IfUnlessModifier:
+  Enabled: false
+Style/ItAssignment:
+  Enabled: false
+Style/MultilineBlockChain:
+  Enabled: false
+Style/MultipleComparison:
+  Enabled: false
+Style/NegatedIfElseCondition:
+  Enabled: false
+Style/RedundantAssignment:
+  Enabled: false
+
+# Built-in function parameters are positional, as their arity (JS Function.length) is used when invoking them.
+Style/OptionalBooleanParameter:
+  Enabled: false
+
+# Array#sum uses Kahan-Babuska summation, which gives different results from the JS loop (see AGENTS.md).
+Performance/Sum:
+  Enabled: false
+
+# Jsonata::Error is raised with a code and fields, e.g. raise Jsonata::Error.new('T0410', :index => 1).
+Style/RaiseArgs:
+  EnforcedStyle: compact

@@ -77,17 +77,17 @@ module Jsonata
       # undefined inputs always return undefined
       return nil if arg.nil?
 
-      if arg.is_a?(String)
+      if arg.kind_of?(String)
         # already a string
         arg
       elsif Utils.function?(arg)
         # functions (built-in and lambda convert to empty string
         ''
-      elsif arg.is_a?(Float) && !arg.finite?
-        raise Jsonata::Error.new('D3001', value: arg)
+      elsif arg.kind_of?(Float) && !arg.finite?
+        raise Jsonata::Error.new('D3001', :value => arg)
       else
         space = prettify ? 2 : 0
-        arg = arg[0] if arg.is_a?(JArray) && arg.outer_wrapper
+        arg = arg[0] if arg.kind_of?(JArray) && arg.outer_wrapper
         Utils.json_stringify(arg, lambda { |val|
           if !val.nil? && val != NULL && Utils.numeric?(val)
             Utils.integer?(val) ? val : Utils.to_precision(val, 15)
@@ -221,7 +221,7 @@ module Jsonata
         # limit the length of the padding to ten million characters (1e7) to
         # protect against excessive memory allocation, consistent with the hard
         # limit imposed by the range operator (see error D2014)
-        raise Jsonata::Error.new('D2016', value: pad_length) if pad_length > 1e7
+        raise Jsonata::Error.new('D2016', :value => pad_length) if pad_length > 1e7
 
         padding = char * pad_length
         padding = substring(padding, 0, pad_length) if char.length > 1
@@ -242,11 +242,12 @@ module Jsonata
     # @returns structure that represents the match(es)
     def evaluate_matcher(matcher, str = nil)
       result = call_function(matcher, [str])
-      if Utils.truthy?(result) && !(result.is_a?(Hash) && (result['start'].is_a?(Numeric) || result['end'] == 'number' ||
-                                                         result['groups'].is_a?(Array) || Utils.function?(result['next'])))
+      if Utils.truthy?(result) && !(result.kind_of?(Hash) && (result['start'].kind_of?(Numeric) || result['end'] == 'number' ||
+                                                         result['groups'].kind_of?(Array) || Utils.function?(result['next'])))
         # the matcher function didn't return the correct structure
         raise Jsonata::Error.new('T1010')
       end
+
       result
     end
 
@@ -258,7 +259,7 @@ module Jsonata
       # undefined inputs always return undefined
       return nil if str.nil? || token.nil?
 
-      if token.is_a?(String)
+      if token.kind_of?(String)
         str.include?(token)
       else
         matches = evaluate_matcher(token, str)
@@ -276,7 +277,7 @@ module Jsonata
       return nil if str.nil?
 
       # limit, if specified, must be a non-negative number
-      raise Jsonata::Error.new('D3040', value: limit, index: 3) if !limit.nil? && limit.negative?
+      raise Jsonata::Error.new('D3040', :value => limit, :index => 3) if !limit.nil? && limit.negative?
 
       result = create_sequence
 
@@ -286,8 +287,8 @@ module Jsonata
         unless matches.nil?
           while !matches.nil? && (limit.nil? || count < limit)
             result.push({
-                          'match' => matches['match'],
-                          'index' => matches['start'],
+                          'match'  => matches['match'],
+                          'index'  => matches['start'],
                           'groups' => matches['groups']
                         })
             matches = evaluate_matcher(matches['next'])
@@ -310,12 +311,12 @@ module Jsonata
       return nil if str.nil? || pattern.nil?
 
       # pattern cannot be an empty string
-      raise Jsonata::Error.new('D3010', value: pattern, index: 2) if pattern == ''
+      raise Jsonata::Error.new('D3010', :value => pattern, :index => 2) if pattern == ''
 
       # limit, if specified, must be a non-negative number
-      raise Jsonata::Error.new('D3011', value: limit, index: 4) if !limit.nil? && limit.negative?
+      raise Jsonata::Error.new('D3011', :value => limit, :index => 4) if !limit.nil? && limit.negative?
 
-      replacer = if replacement.is_a?(String)
+      replacer = if replacement.kind_of?(String)
                    lambda do |regex_match|
                      substitute = +''
                      # scan forward, copying the replacement text into the substitute string
@@ -371,7 +372,7 @@ module Jsonata
 
       if limit.nil? || limit.positive?
         count = 0
-        if pattern.is_a?(String)
+        if pattern.kind_of?(String)
           index = str.index(pattern, position)
           while !index.nil? && (limit.nil? || count < limit)
             result << str[position...index]
@@ -390,9 +391,9 @@ module Jsonata
               result << (str[position...matches['start']] || '')
               replaced_with = call_function(replacer, [matches])
               # check replacedWith is a string
-              unless replaced_with.is_a?(String)
+              unless replaced_with.kind_of?(String)
                 # not a string - throw error
-                raise Jsonata::Error.new('D3012', value: replaced_with)
+                raise Jsonata::Error.new('D3012', :value => replaced_with)
               end
 
               result << replaced_with
@@ -443,7 +444,7 @@ module Jsonata
       # Catch URIErrors when URI sequence is malformed
       Utils.encode_uri(str, Utils::URI_UNRESERVED)
     rescue Utils::URIError
-      raise Jsonata::Error.new('D3140', value: str, function_name: 'encodeUrlComponent')
+      raise Jsonata::Error.new('D3140', :value => str, :function_name => 'encodeUrlComponent')
     end
 
     # Encode a string into a url
@@ -456,7 +457,7 @@ module Jsonata
       # Catch URIErrors when URI sequence is malformed
       Utils.encode_uri(str, Utils::URI_UNRESERVED + Utils::URI_RESERVED)
     rescue Utils::URIError
-      raise Jsonata::Error.new('D3140', value: str, function_name: 'encodeUrl')
+      raise Jsonata::Error.new('D3140', :value => str, :function_name => 'encodeUrl')
     end
 
     # Decode a string from a component for a url
@@ -469,7 +470,7 @@ module Jsonata
       # Catch URIErrors when URI sequence is malformed
       Utils.decode_uri(str, '')
     rescue Utils::URIError
-      raise Jsonata::Error.new('D3140', value: str, function_name: 'decodeUrlComponent')
+      raise Jsonata::Error.new('D3140', :value => str, :function_name => 'decodeUrlComponent')
     end
 
     # Decode a string from a url
@@ -482,7 +483,7 @@ module Jsonata
       # Catch URIErrors when URI sequence is malformed
       Utils.decode_uri(str, Utils::URI_RESERVED)
     rescue Utils::URIError
-      raise Jsonata::Error.new('D3140', value: str, function_name: 'decodeUrl')
+      raise Jsonata::Error.new('D3140', :value => str, :function_name => 'decodeUrl')
     end
 
     # Split a string into an array of substrings
@@ -495,12 +496,12 @@ module Jsonata
       return nil if str.nil? || separator.nil?
 
       # limit, if specified, must be a non-negative number
-      raise Jsonata::Error.new('D3020', value: limit, index: 3) if !limit.nil? && limit.negative?
+      raise Jsonata::Error.new('D3020', :value => limit, :index => 3) if !limit.nil? && limit.negative?
 
       result = []
 
       if limit.nil? || limit.positive?
-        if separator.is_a?(String)
+        if separator.kind_of?(String)
           result = Utils.js_split(str, separator, limit)
         else
           count = 0
@@ -547,17 +548,17 @@ module Jsonata
       return nil if value.nil?
 
       defaults = {
-        'decimal-separator' => '.',
+        'decimal-separator'  => '.',
         'grouping-separator' => ',',
         'exponent-separator' => 'e',
-        'infinity' => 'Infinity',
-        'minus-sign' => '-',
-        'NaN' => 'NaN',
-        'percent' => '%',
-        'per-mille' => "\u2030",
-        'zero-digit' => '0',
-        'digit' => '#',
-        'pattern-separator' => ';'
+        'infinity'           => 'Infinity',
+        'minus-sign'         => '-',
+        'NaN'                => 'NaN',
+        'percent'            => '%',
+        'per-mille'          => "\u2030",
+        'zero-digit'         => '0',
+        'digit'              => '#',
+        'pattern-separator'  => ';'
       }
 
       # if `options` is specified, then its entries override defaults
@@ -568,10 +569,9 @@ module Jsonata
         end
       end
 
-      decimal_digit_family = []
       zero_char_code = properties['zero-digit'].ord
-      (zero_char_code...(zero_char_code + 10)).each do |ii|
-        decimal_digit_family.push(ii.chr(Encoding::UTF_8))
+      decimal_digit_family = (zero_char_code...(zero_char_code + 10)).map do |ii|
+        ii.chr(Encoding::UTF_8)
       end
 
       active_chars = decimal_digit_family + [properties['decimal-separator'], properties['exponent-separator'],
@@ -618,14 +618,14 @@ module Jsonata
           fractional_part = mantissa_part[(decimal_position + 1)..]
         end
         {
-          prefix: prefix,
-          suffix: suffix,
-          active_part: active_part,
-          mantissa_part: mantissa_part,
-          exponent_part: exponent_part,
-          integer_part: integer_part,
-          fractional_part: fractional_part,
-          subpicture: subpicture
+          :prefix          => prefix,
+          :suffix          => suffix,
+          :active_part     => active_part,
+          :mantissa_part   => mantissa_part,
+          :exponent_part   => exponent_part,
+          :integer_part    => integer_part,
+          :fractional_part => fractional_part,
+          :subpicture      => subpicture
         }
       end
 
@@ -663,7 +663,7 @@ module Jsonata
         if !optional_digit_pos.nil? && parts[:fractional_part][optional_digit_pos..].each_char.any? { |char| decimal_digit_family.include?(char) }
           error = 'D3091'
         end
-        exponent_exists = parts[:exponent_part].is_a?(String)
+        exponent_exists = parts[:exponent_part].kind_of?(String)
         if exponent_exists && !parts[:exponent_part].empty? &&
            (subpicture.include?(properties['percent']) || subpicture.include?(properties['per-mille']))
           error = 'D3092'
@@ -713,7 +713,7 @@ module Jsonata
         maximum_factional_part_size = fractional_part_array.count do |char|
           decimal_digit_family.include?(char) || char == properties['digit']
         end
-        exponent_present = parts[:exponent_part].is_a?(String)
+        exponent_present = parts[:exponent_part].kind_of?(String)
         if minimum_integer_part_size.zero? && maximum_factional_part_size.zero?
           if exponent_present
             minimum_factional_part_size = 1
@@ -732,17 +732,17 @@ module Jsonata
         end
 
         {
-          integer_part_grouping_positions: integer_part_grouping_positions,
-          regular_grouping: regular_grouping,
-          minimum_integer_part_size: minimum_integer_part_size,
-          scaling_factor: scaling_factor,
-          prefix: parts[:prefix],
-          fractional_part_grouping_positions: fractional_part_grouping_positions,
-          minimum_factional_part_size: minimum_factional_part_size,
-          maximum_factional_part_size: maximum_factional_part_size,
-          minimum_exponent_size: minimum_exponent_size,
-          suffix: parts[:suffix],
-          picture: parts[:subpicture]
+          :integer_part_grouping_positions    => integer_part_grouping_positions,
+          :regular_grouping                   => regular_grouping,
+          :minimum_integer_part_size          => minimum_integer_part_size,
+          :scaling_factor                     => scaling_factor,
+          :prefix                             => parts[:prefix],
+          :fractional_part_grouping_positions => fractional_part_grouping_positions,
+          :minimum_factional_part_size        => minimum_factional_part_size,
+          :maximum_factional_part_size        => maximum_factional_part_size,
+          :minimum_exponent_size              => minimum_exponent_size,
+          :suffix                             => parts[:suffix],
+          :picture                            => parts[:subpicture]
         }
       end
 
@@ -815,7 +815,7 @@ module Jsonata
         str = Utils.to_fixed(val.abs, dp)
         if zero_digit != '0'
           str = str.each_char.map do |digit|
-            if digit >= '0' && digit <= '9'
+            if digit.between?('0', '9')
               decimal_digit_family[digit.ord - 48]
             else
               digit
@@ -892,7 +892,7 @@ module Jsonata
                 round(radix)
               end
 
-      raise Jsonata::Error.new('D3100', value: radix) if radix < 2 || radix > 36
+      raise Jsonata::Error.new('D3100', :value => radix) if radix < 2 || radix > 36
 
       value.to_i.to_s(radix.to_i)
     end
@@ -904,12 +904,12 @@ module Jsonata
       # undefined inputs always return undefined
       return nil if arg.nil?
 
-      if arg.is_a?(Numeric)
+      if arg.kind_of?(Numeric)
         # already a number
         arg
-      elsif arg.is_a?(String) && /\A-?[0-9]+(\.[0-9]+)?([Ee][-+]?[0-9]+)?\z/.match?(arg) && Float(arg).finite?
+      elsif arg.kind_of?(String) && /\A-?[0-9]+(\.[0-9]+)?([Ee][-+]?[0-9]+)?\z/.match?(arg) && Float(arg).finite?
         Utils.normalize_number(Float(arg))
-      elsif arg.is_a?(String) && /\A(0[xX][0-9A-Fa-f]+)|(0[oO][0-7]+)|(0[bB][0-1]+)\z/.match?(arg)
+      elsif arg.kind_of?(String) && /\A(0[xX][0-9A-Fa-f]+)|(0[oO][0-7]+)|(0[bB][0-1]+)\z/.match?(arg)
         Utils.js_number(arg)
       elsif arg == true
         # boolean true casts to 1
@@ -918,7 +918,7 @@ module Jsonata
         # boolean false casts to 0
         0
       else
-        raise Jsonata::Error.new('D3030', value: arg, index: 1)
+        raise Jsonata::Error.new('D3030', :value => arg, :index => 1)
       end
     end
 
@@ -973,7 +973,7 @@ module Jsonata
       # round up to nearest int
       result = (arg.to_r + Rational(1, 2)).floor
       diff = result - arg.to_f
-      if diff.abs == 0.5 && (result % 2).abs == 1
+      if diff.abs == 0.5 && (result % 2).abs == 1 # rubocop:disable Lint/FloatComparison -- exact comparison, as in JS
         # rounded the wrong way - adjust to nearest even number
         result -= 1
       end
@@ -993,7 +993,7 @@ module Jsonata
       # undefined inputs always return undefined
       return nil if arg.nil?
 
-      raise Jsonata::Error.new('D3060', index: 1, value: arg) if arg.negative?
+      raise Jsonata::Error.new('D3060', :index => 1, :value => arg) if arg.negative?
 
       Utils.normalize_number(Math.sqrt(arg))
     end
@@ -1012,7 +1012,7 @@ module Jsonata
                  arg.to_f**exp.to_f
                end
 
-      raise Jsonata::Error.new('D3061', index: 1, value: arg, exp: exp) unless result.finite?
+      raise Jsonata::Error.new('D3061', :index => 1, :value => arg, :exp => exp) unless result.finite?
 
       Utils.normalize_number(result)
     end
@@ -1040,18 +1040,18 @@ module Jsonata
       return nil if arg.nil?
 
       result = false
-      if arg.is_a?(Array)
+      if arg.kind_of?(Array)
         if arg.length == 1
           result = boolean(arg[0])
         elsif arg.length > 1
           trues = arg.select { |val| boolean(val) }
           result = !trues.empty?
         end
-      elsif arg.is_a?(String)
+      elsif arg.kind_of?(String)
         result = true unless arg.empty?
       elsif Utils.numeric?(arg)
         result = true unless arg.zero?
-      elsif arg.is_a?(Hash)
+      elsif arg.kind_of?(Hash)
         result = true unless Utils.keys(arg).empty?
       elsif arg == true
         result = true
@@ -1147,7 +1147,7 @@ module Jsonata
         end
         next unless positive_result
 
-        raise Jsonata::Error.new('D3138', index: i) if has_found_match
+        raise Jsonata::Error.new('D3138', :index => i) if has_found_match
 
         result = entry
         has_found_match = true
@@ -1165,7 +1165,7 @@ module Jsonata
       # this can take a variable number of arguments
       result = []
       # length of the shortest array
-      length = args.map { |arg| arg.is_a?(Array) ? arg.length : 0 }.min || 0
+      length = args.map { |arg| arg.kind_of?(Array) ? arg.length : 0 }.min || 0
       (0...length).each do |i|
         tuple = args.map { |arg| arg[i] }
         result.push(tuple)
@@ -1183,7 +1183,7 @@ module Jsonata
       return nil if sequence.nil?
 
       arity = Utils.get_function_arity(func)
-      raise Jsonata::Error.new('D3050', index: 1) if arity < 2
+      raise Jsonata::Error.new('D3050', :index => 1) if arity < 2
 
       if init.nil? && !sequence.empty?
         result = sequence[0]
@@ -1210,7 +1210,7 @@ module Jsonata
     def keys(arg)
       result = create_sequence
 
-      if arg.is_a?(Array)
+      if arg.kind_of?(Array)
         # merge the keys of all of the items in the array
         merge = {}
         arg.each do |item|
@@ -1219,7 +1219,7 @@ module Jsonata
           end
         end
         result = keys(merge)
-      elsif arg.is_a?(Hash)
+      elsif arg.kind_of?(Hash)
         Utils.keys(arg).each { |key| result.push(key) }
       end
       result
@@ -1232,19 +1232,19 @@ module Jsonata
     def lookup(input, key)
       # lookup the 'name' item in the input
       result = nil
-      if input.is_a?(Array)
+      if input.kind_of?(Array)
         result = create_sequence
         input.each do |item|
           res = lookup(item, key)
           next if res.nil?
 
-          if res.is_a?(Array)
+          if res.kind_of?(Array)
             res.each { |val| result.push(val) }
           else
             result.push(res)
           end
         end
-      elsif input.is_a?(Hash) && input.key?(key)
+      elsif input.kind_of?(Hash) && input.key?(key)
         result = input[key]
       end
       result
@@ -1260,10 +1260,10 @@ module Jsonata
       return arg1 if arg2.nil?
 
       # if either argument is not an array, make it so
-      arg1 = create_sequence(arg1) unless arg1.is_a?(Array)
-      arg2 = [arg2] unless arg2.is_a?(Array)
+      arg1 = create_sequence(arg1) unless arg1.kind_of?(Array)
+      arg2 = [arg2] unless arg2.kind_of?(Array)
       size = arg1.length + arg2.length
-      raise Jsonata::Error.new('D2015', value: size) if options && options[:sequence] && size > options[:sequence]
+      raise Jsonata::Error.new('D2015', :value => size) if options && options[:sequence] && size > options[:sequence]
 
       Array.new(arg1).concat(arg2)
     end
@@ -1281,14 +1281,14 @@ module Jsonata
     def spread(arg)
       result = create_sequence
 
-      if arg.is_a?(Array)
+      if arg.kind_of?(Array)
         # spread all of the items in the array
         arg.each do |item|
           result = append(result, spread(item))
         end
-      elsif arg.is_a?(Hash)
+      elsif arg.kind_of?(Hash)
         Utils.keys(arg).each do |key|
-          result.push({ key => arg[key] })
+          result.push({key => arg[key]})
         end
       else
         result = arg
@@ -1345,7 +1345,7 @@ module Jsonata
     # @param message - the message to attach to the error
     # @throws custom error with code 'D3137'
     def error(message)
-      raise Jsonata::Error.new('D3137', message: Utils.truthy?(message) ? message : '$error() function evaluated')
+      raise Jsonata::Error.new('D3137', :message => Utils.truthy?(message) ? message : '$error() function evaluated')
     end
 
     # @param condition - the condition to evaluate
@@ -1354,7 +1354,7 @@ module Jsonata
     # @returns undefined
     def assert(condition, message)
       unless condition
-        raise Jsonata::Error.new('D3141', message: Utils.truthy?(message) ? message : '$assert() statement failed')
+        raise Jsonata::Error.new('D3141', :message => Utils.truthy?(message) ? message : '$assert() statement failed')
       end
 
       nil
@@ -1366,9 +1366,9 @@ module Jsonata
       return nil if value.nil?
       return 'null' if value == NULL
       return 'number' if Utils.numeric?(value)
-      return 'string' if value.is_a?(String)
+      return 'string' if value.kind_of?(String)
       return 'boolean' if [true, false].include?(value)
-      return 'array' if value.is_a?(Array)
+      return 'array' if value.kind_of?(Array)
       return 'function' if Utils.function?(value)
 
       'object'
@@ -1388,7 +1388,7 @@ module Jsonata
       if comparator.nil?
         # inject a default comparator - only works for numeric or string arrays
         unless Utils.array_of_numbers?(arr) || Utils.array_of_strings?(arr)
-          raise Jsonata::Error.new('D3070', index: 1)
+          raise Jsonata::Error.new('D3070', :index => 1)
         end
 
         comp = ->(a, b) { a > b }
@@ -1419,7 +1419,7 @@ module Jsonata
       end
 
       msort = lambda do |array|
-        if !array.is_a?(Array) || array.length <= 1
+        if !array.kind_of?(Array) || array.length <= 1
           array
         else
           middle = (array.length / 2).floor
@@ -1461,7 +1461,7 @@ module Jsonata
       # undefined inputs always return undefined
       return nil if arr.nil?
 
-      return arr if !arr.is_a?(Array) || arr.length <= 1
+      return arr if !arr.kind_of?(Array) || arr.length <= 1
 
       results = Utils.sequence?(arr) ? create_sequence : []
 
@@ -1500,7 +1500,7 @@ module Jsonata
 
     # Equivalent of `func.apply(this, args)` in jsonata-js
     def call_function(func, args)
-      if func.is_a?(Lambda)
+      if func.kind_of?(Lambda)
         func.apply(self, args)
       else
         Utils.invoke(func, args)

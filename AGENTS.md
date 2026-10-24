@@ -27,6 +27,10 @@ the decisions behind the port and how JavaScript semantics are emulated in Ruby.
   (e.g. caching in the Ruby-only helpers in `utils.rb`), but must not change the logic ported from jsonata-js.
   Algorithmic improvements should be proposed upstream first, and then ported.
 - **Ruby >= 3.1.** Do not use syntax or core methods newer than 3.1.
+- **Rubocop must pass.** The style is ManageIQ's (`manageiq-style` gem), with project overrides in
+  `.rubocop_local.yml`. Cops that would restructure ported code away from the JS are disabled there; prefer adding
+  to that list (with the reason) over rewriting ported code to satisfy a cop. Review unsafe autocorrections by
+  hand - some are wrong here (e.g. `Style/HashExcept` on `#parameters`, or `Style/BitwisePredicate`).
 
 ## Porting workflow for upstream changes
 

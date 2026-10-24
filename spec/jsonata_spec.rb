@@ -10,22 +10,22 @@ RSpec.describe Jsonata do
 
   describe '.evaluate' do
     it 'evaluates an expression against data' do
-      expect(described_class.evaluate('$sum(example.value)', { example: [{ value: 4 }, { value: 7 }, { value: 13 }] }))
+      expect(described_class.evaluate('$sum(example.value)', {:example => [{:value => 4}, {:value => 7}, {:value => 13}]}))
         .to eq(24)
     end
 
     it 'accepts variable bindings' do
-      expect(described_class.evaluate('value > $threshold', { value: 150 }, { threshold: 100 })).to be(true)
+      expect(described_class.evaluate('value > $threshold', {:value => 150}, {:threshold => 100})).to be(true)
     end
   end
 
   describe 'input conversion' do
     it 'accepts Symbol keys' do
-      expect(described_class.evaluate('a.b', { a: { b: 1 } })).to eq(1)
+      expect(described_class.evaluate('a.b', {:a => {:b => 1}})).to eq(1)
     end
 
     it 'treats nested nil as JSON null' do
-      expect(described_class.evaluate('$type(a)', { a: nil })).to eq('null')
+      expect(described_class.evaluate('$type(a)', {:a => nil})).to eq('null')
     end
 
     it 'treats a top-level nil input as undefined' do
@@ -65,7 +65,7 @@ RSpec.describe Jsonata do
       it 'binds a Ruby function' do
         expr = described_class.new('$double(value)')
         expr.assign('double', ->(x) { x * 2 })
-        expect(expr.evaluate({ value: 21 })).to eq(42)
+        expect(expr.evaluate({:value => 21})).to eq(42)
       end
     end
 
@@ -91,7 +91,7 @@ RSpec.describe Jsonata do
 
     describe '#ast' do
       it 'returns the parsed expression' do
-        expect(described_class.new('a.b').ast).to include(type: 'path')
+        expect(described_class.new('a.b').ast).to include(:type => 'path')
       end
     end
   end

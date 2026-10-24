@@ -15,7 +15,7 @@ module Jsonata
       @code = code
       @message = message
       fields.each do |key, val|
-        raise ArgumentError, "unknown field #{key}" unless FIELDS.include?(key)
+        raise ArgumentError.new("unknown field #{key}") unless FIELDS.include?(key)
 
         instance_variable_set("@#{key}", val)
       end
@@ -32,7 +32,7 @@ module Jsonata
 
     # Returns the error fields keyed using the jsonata-js property names
     def to_h
-      result = { 'code' => code }
+      result = {'code' => code}
       FIELDS.each do |field|
         next if field == :code
 
@@ -98,12 +98,12 @@ module Jsonata
       @block = block
     end
 
-    def call(*args)
-      @block.call(*args)
+    def call(*)
+      @block.call(*)
     end
 
     def parameters
-      [[:rest, :args]]
+      [%i[rest args]]
     end
 
     def to_proc

@@ -137,6 +137,7 @@ bundle install
 bundle exec rspec                         # run all tests
 GROUP=hof-map,regex bundle exec rspec     # run specific test-suite groups
 bundle exec rake console                  # interactive console
+bundle exec rubocop                       # lint
 ```
 
 ### Structure of the port

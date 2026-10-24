@@ -13,55 +13,55 @@
 module Jsonata
   class Parser
     OPERATORS = {
-      '.' => 75,
-      '[' => 80,
-      ']' => 0,
-      '{' => 70,
-      '}' => 0,
-      '(' => 80,
-      ')' => 0,
-      ',' => 0,
-      '@' => 80,
-      '#' => 80,
-      ';' => 80,
-      ':' => 80,
-      '?' => 20,
-      '+' => 50,
-      '-' => 50,
-      '*' => 60,
-      '/' => 60,
-      '%' => 60,
-      '|' => 20,
-      '=' => 40,
-      '<' => 40,
-      '>' => 40,
-      '^' => 40,
-      '**' => 60,
-      '..' => 20,
-      ':=' => 10,
-      '!=' => 40,
-      '<=' => 40,
-      '>=' => 40,
-      '~>' => 40,
-      '?:' => 40,
-      '??' => 40,
+      '.'   => 75,
+      '['   => 80,
+      ']'   => 0,
+      '{'   => 70,
+      '}'   => 0,
+      '('   => 80,
+      ')'   => 0,
+      ','   => 0,
+      '@'   => 80,
+      '#'   => 80,
+      ';'   => 80,
+      ':'   => 80,
+      '?'   => 20,
+      '+'   => 50,
+      '-'   => 50,
+      '*'   => 60,
+      '/'   => 60,
+      '%'   => 60,
+      '|'   => 20,
+      '='   => 40,
+      '<'   => 40,
+      '>'   => 40,
+      '^'   => 40,
+      '**'  => 60,
+      '..'  => 20,
+      ':='  => 10,
+      '!='  => 40,
+      '<='  => 40,
+      '>='  => 40,
+      '~>'  => 40,
+      '?:'  => 40,
+      '??'  => 40,
       'and' => 30,
-      'or' => 25,
-      'in' => 40,
-      '&' => 50,
-      '!' => 0, # not an operator, but needed as a stop character for name tokens
-      '~' => 0 # not an operator, but needed as a stop character for name tokens
+      'or'  => 25,
+      'in'  => 40,
+      '&'   => 50,
+      '!'   => 0, # not an operator, but needed as a stop character for name tokens
+      '~'   => 0 # not an operator, but needed as a stop character for name tokens
     }.freeze
 
     ESCAPES = { # JSON string escape sequences - see json.org
-      '"' => '"',
+      '"'  => '"',
       '\\' => '\\',
-      '/' => '/',
-      'b' => "\b",
-      'f' => "\f",
-      'n' => "\n",
-      'r' => "\r",
-      't' => "\t"
+      '/'  => '/',
+      'b'  => "\b",
+      'f'  => "\f",
+      'n'  => "\n",
+      'r'  => "\r",
+      't'  => "\t"
     }.freeze
 
     WHITESPACE = " \t\n\r\v"
@@ -104,7 +104,7 @@ module Jsonata
             current_char = char_at(@position)
             if @position >= @length
               # no closing tag
-              raise Jsonata::Error.new('S0106', position: comment_start)
+              raise Jsonata::Error.new('S0106', :position => comment_start)
             end
           end
           @position += 2
@@ -153,11 +153,11 @@ module Jsonata
                   end
                   qstr << Utils.from_char_code(codepoint)
                 else
-                  raise Jsonata::Error.new('S0104', position: @position)
+                  raise Jsonata::Error.new('S0104', :position => @position)
                 end
               else
                 # illegal escape sequence
-                raise Jsonata::Error.new('S0103', position: @position, token: current_char)
+                raise Jsonata::Error.new('S0103', :position => @position, :token => current_char)
               end
             elsif current_char == quote_type
               @position += 1
@@ -167,7 +167,7 @@ module Jsonata
             end
             @position += 1
           end
-          raise Jsonata::Error.new('S0101', position: @position)
+          raise Jsonata::Error.new('S0101', :position => @position)
         end
         # test for numbers
         match = /\A-?(0|([1-9][0-9]*))(\.[0-9]+)?([Ee][-+]?[0-9]+)?/.match(@path[@position..])
@@ -177,7 +177,7 @@ module Jsonata
             @position += match[0].length
             return create('number', Utils.normalize_number(num))
           else
-            raise Jsonata::Error.new('S0102', position: @position, token: match[0])
+            raise Jsonata::Error.new('S0102', :position => @position, :token => match[0])
           end
         end
         # test for quoted names (backticks)
@@ -191,7 +191,7 @@ module Jsonata
             return create('name', name)
           end
           @position = @length
-          raise Jsonata::Error.new('S0105', position: @position)
+          raise Jsonata::Error.new('S0105', :position => @position)
         end
         # test for names
         i = @position
@@ -238,7 +238,7 @@ module Jsonata
       end
 
       def create(type, value)
-        { type: type, value: value, position: @position }
+        {:type => type, :value => value, :position => @position}
       end
 
       def scan_regex
@@ -261,7 +261,7 @@ module Jsonata
           if closing_slash.call(@position)
             # end of regex found
             pattern = @path[start...@position]
-            raise Jsonata::Error.new('S0301', position: @position) if pattern == ''
+            raise Jsonata::Error.new('S0301', :position => @position) if pattern == ''
 
             @position += 1
             current_char = char_at(@position)
@@ -274,16 +274,16 @@ module Jsonata
             flags = "#{@path[start...@position]}g"
             return RegexLiteral.new(pattern, flags)
           end
-          if ['(', '[', '{'].include?(current_char) && char_at(@position - 1) != '\\'
+          if (current_char == '(' || current_char == '[' || current_char == '{') && char_at(@position - 1) != '\\'
             depth += 1
           end
-          if [')', ']', '}'].include?(current_char) && char_at(@position - 1) != '\\'
+          if (current_char == ')' || current_char == ']' || current_char == '}') && char_at(@position - 1) != '\\'
             depth -= 1
           end
 
           @position += 1
         end
-        raise Jsonata::Error.new('S0302', position: @position)
+        raise Jsonata::Error.new('S0302', :position => @position)
       end
     end
 
@@ -318,14 +318,14 @@ module Jsonata
       # parse the tokens
       expr = expression(0)
       if node_id(@node) != '(end)'
-        err = Jsonata::Error.new('S0201', position: @node[:position], token: @node[:value])
+        err = Jsonata::Error.new('S0201', :position => @node[:position], :token => @node[:value])
         handle_error(err)
       end
       expr = process_ast(expr)
 
       if expr[:type] == 'parent' || expr.key?(:seeking_parent)
         # error - trying to derive ancestor at top level
-        raise Jsonata::Error.new('S0217', token: expr[:type], position: expr[:position])
+        raise Jsonata::Error.new('S0217', :token => expr[:type], :position => expr[:position])
       end
 
       expr[:errors] = @errors unless @errors.empty?
@@ -350,7 +350,7 @@ module Jsonata
     def remaining_tokens
       remaining = []
       if node_id(@node) != '(end)'
-        remaining.push({ type: @node[:type], value: @node[:value], position: @node[:position] })
+        remaining.push({:type => @node[:type], :value => @node[:value], :position => @node[:position]})
       end
       nxt = @lexer.call
       until nxt.nil?
@@ -363,13 +363,13 @@ module Jsonata
     def base_nud
       lambda do |this|
         # error - symbol has been invoked as a unary operator
-        err = Jsonata::Error.new('S0211', token: this[:value], position: this[:position])
+        err = Jsonata::Error.new('S0211', :token => this[:value], :position => this[:position])
 
         raise err unless @recover
 
         err.remaining = remaining_tokens
         @errors.push(err)
-        { type: 'error', error: err, code: err.code, token: err.token, position: err.position, remaining: err.remaining }
+        {:type => 'error', :error => err, :code => err.code, :token => err.token, :position => err.position, :remaining => err.remaining}
       end
     end
 
@@ -392,7 +392,7 @@ module Jsonata
       err.remaining = remaining_tokens
       @errors.push(err)
       sym = @symbol_table['(error)']
-      @node = { value: sym.value, error: err, type: '(error)' }
+      @node = {:value => sym.value, :error => err, :type => '(error)'}
       @node_symbols[@node] = sym
       @node
     end
@@ -405,7 +405,7 @@ module Jsonata
                else
                  'S0202'
                end
-        err = Jsonata::Error.new(code, position: @node[:position], token: @node[:value], value: id)
+        err = Jsonata::Error.new(code, :position => @node[:position], :token => @node[:value], :value => id)
         return handle_error(err)
       end
       next_token = @lexer.call(infix)
@@ -422,7 +422,7 @@ module Jsonata
       when 'operator'
         sym = @symbol_table[value]
         unless sym
-          return handle_error(Jsonata::Error.new('S0204', position: next_token[:position], token: value))
+          return handle_error(Jsonata::Error.new('S0204', :position => next_token[:position], :token => value))
         end
       when 'string', 'number', 'value'
         sym = @symbol_table['(literal)']
@@ -430,10 +430,10 @@ module Jsonata
         type = 'regex'
         sym = @symbol_table['(regex)']
       else
-        return handle_error(Jsonata::Error.new('S0205', position: next_token[:position], token: value))
+        return handle_error(Jsonata::Error.new('S0205', :position => next_token[:position], :token => value))
       end
 
-      @node = { value: value, type: type, position: next_token[:position] }
+      @node = {:value => value, :type => type, :position => next_token[:position]}
       @node_symbols[@node] = sym
       @node
     end
@@ -502,7 +502,7 @@ module Jsonata
 
     def define_symbols
       terminal('(end)')
-      @end_node = { value: '(end)' }
+      @end_node = {:value => '(end)'}
       @node_symbols[@end_node] = @symbol_table['(end)']
       terminal('(name)')
       terminal('(literal)')
@@ -540,10 +540,10 @@ module Jsonata
       infix('??', OPERATORS['??']) do |this, left|
         this[:type] = 'condition'
         this[:condition] = {
-          type: 'function',
-          value: '(',
-          procedure: { type: 'variable', value: 'exists' },
-          arguments: [deep_clone(left)]
+          :type      => 'function',
+          :value     => '(',
+          :procedure => {:type => 'variable', :value => 'exists'},
+          :arguments => [deep_clone(left)]
         }
         this[:then] = left
         this[:else] = expression(0)
@@ -605,7 +605,7 @@ module Jsonata
           this[:arguments].each_with_index do |arg, index|
             next if arg[:type] == 'variable'
 
-            handle_error(Jsonata::Error.new('S0208', position: arg[:position], token: arg[:value], value: index + 1))
+            handle_error(Jsonata::Error.new('S0208', :position => arg[:position], :token => arg[:value], :value => index + 1))
           end
           this[:type] = 'lambda'
           # is the next token a '<' - if so, parse the function signature
@@ -662,7 +662,7 @@ module Jsonata
             item = expression(0)
             if node_id(@node) == '..'
               # range operator
-              range = { type: 'binary', value: '..', position: @node[:position], lhs: item }
+              range = {:type => 'binary', :value => '..', :position => @node[:position], :lhs => item}
               advance('..')
               range[:rhs] = expression(0)
               item = range
@@ -703,7 +703,7 @@ module Jsonata
         terms = []
         loop do
           term = {
-            descending: false
+            :descending => false
           }
           if node_id(@node) == '<'
             # ascending sort
@@ -764,7 +764,7 @@ module Jsonata
       # bind variable
       infixr(':=', OPERATORS[':=']) do |this, left|
         if left[:type] != 'variable'
-          next handle_error(Jsonata::Error.new('S0212', position: left[:position], token: left[:value]))
+          next handle_error(Jsonata::Error.new('S0212', :position => left[:position], :token => left[:value]))
         end
 
         this[:lhs] = left
@@ -778,7 +778,7 @@ module Jsonata
         this[:lhs] = left
         this[:rhs] = expression(OPERATORS['@'])
         if this[:rhs][:type] != 'variable'
-          next handle_error(Jsonata::Error.new('S0214', position: this[:rhs][:position], token: '@'))
+          next handle_error(Jsonata::Error.new('S0214', :position => this[:rhs][:position], :token => '@'))
         end
 
         this[:type] = 'binary'
@@ -790,7 +790,7 @@ module Jsonata
         this[:lhs] = left
         this[:rhs] = expression(OPERATORS['#'])
         if this[:rhs][:type] != 'variable'
-          next handle_error(Jsonata::Error.new('S0214', position: this[:rhs][:position], token: '#'))
+          next handle_error(Jsonata::Error.new('S0214', :position => this[:rhs][:position], :token => '#'))
         end
 
         this[:type] = 'binary'
@@ -846,7 +846,7 @@ module Jsonata
     # This enables tail-recursive functions to be written without growing the stack
     def tail_call_optimize(expr)
       if expr[:type] == 'function' && !expr[:predicate]
-        thunk = { type: 'lambda', thunk: true, arguments: [], position: expr[:position] }
+        thunk = {:type => 'lambda', :thunk => true, :arguments => [], :position => expr[:position]}
         thunk[:body] = expr
         thunk
       elsif expr[:type] == 'condition'
@@ -899,7 +899,7 @@ module Jsonata
         end
       else
         # error - can't derive ancestor
-        raise Jsonata::Error.new('S0217', token: node[:type], position: node[:position])
+        raise Jsonata::Error.new('S0217', :token => node[:type], :position => node[:position])
       end
       slot
     end
@@ -962,7 +962,7 @@ module Jsonata
           result = if lstep[:type] == 'path'
                      lstep
                    else
-                     { type: 'path', steps: [lstep] }
+                     {:type => 'path', :steps => [lstep]}
                    end
           result[:seeking_parent] = [lstep[:slot]] if lstep[:type] == 'parent'
           rest = process_ast(expr[:rhs])
@@ -976,7 +976,7 @@ module Jsonata
           result[:steps].select do |step|
             if step[:type] == 'number' || step[:type] == 'value'
               # don't allow steps to be numbers or the values true/false/null
-              raise Jsonata::Error.new('S0213', position: step[:position], value: step[:value])
+              raise Jsonata::Error.new('S0213', :position => step[:position], :value => step[:value])
             end
 
             step[:type] == 'string'
@@ -1003,7 +1003,7 @@ module Jsonata
             step = result[:steps][-1]
             type = :stages
           end
-          raise Jsonata::Error.new('S0209', position: expr[:position]) if step.key?(:group)
+          raise Jsonata::Error.new('S0209', :position => expr[:position]) if step.key?(:group)
 
           step[type] = [] unless step.key?(type)
           predicate = process_ast(expr[:rhs])
@@ -1017,38 +1017,38 @@ module Jsonata
             end
             push_ancestry(step, predicate)
           end
-          step[type].push({ type: 'filter', expr: predicate, position: expr[:position] })
+          step[type].push({:type => 'filter', :expr => predicate, :position => expr[:position]})
         when '{'
           # group-by
           # LHS is a step or a predicated step
           # RHS is the object constructor expr
           result = process_ast(expr[:lhs])
-          raise Jsonata::Error.new('S0210', position: expr[:position]) if result.key?(:group)
+          raise Jsonata::Error.new('S0210', :position => expr[:position]) if result.key?(:group)
 
           # object constructor - process each pair
           result[:group] = {
-            lhs: expr[:rhs].map { |pair| [process_ast(pair[0]), process_ast(pair[1])] },
-            position: expr[:position]
+            :lhs      => expr[:rhs].map { |pair| [process_ast(pair[0]), process_ast(pair[1])] },
+            :position => expr[:position]
           }
         when '^'
           # order-by
           # LHS is the array to be ordered
           # RHS defines the terms
           result = process_ast(expr[:lhs])
-          result = { type: 'path', steps: [result] } if result[:type] != 'path'
-          sort_step = { type: 'sort', position: expr[:position] }
+          result = {:type => 'path', :steps => [result]} if result[:type] != 'path'
+          sort_step = {:type => 'sort', :position => expr[:position]}
           sort_step[:terms] = expr[:rhs].map do |terms|
             expression = process_ast(terms[:expression])
             push_ancestry(sort_step, expression)
             {
-              descending: terms[:descending],
-              expression: expression
+              :descending => terms[:descending],
+              :expression => expression
             }
           end
           result[:steps].push(sort_step)
           resolve_ancestry(result)
         when ':='
-          result = { type: 'bind', value: expr[:value], position: expr[:position] }
+          result = {:type => 'bind', :value => expr[:value], :position => expr[:position]}
           result[:lhs] = process_ast(expr[:lhs])
           result[:rhs] = process_ast(expr[:rhs])
           push_ancestry(result, result[:rhs])
@@ -1059,10 +1059,10 @@ module Jsonata
           # throw error if there are any predicates defined at this point
           # at this point the only type of stages can be predicates
           if step.key?(:stages) || step.key?(:predicate)
-            raise Jsonata::Error.new('S0215', position: expr[:position])
+            raise Jsonata::Error.new('S0215', :position => expr[:position])
           end
           # also throw if this is applied after an 'order-by' clause
-          raise Jsonata::Error.new('S0216', position: expr[:position]) if step[:type] == 'sort'
+          raise Jsonata::Error.new('S0216', :position => expr[:position]) if step[:type] == 'sort'
 
           step[:keep_array] = true if expr[:keep_array]
           step[:focus] = expr[:rhs][:value]
@@ -1073,29 +1073,29 @@ module Jsonata
           if result[:type] == 'path'
             step = result[:steps][-1]
           else
-            result = { type: 'path', steps: [result] }
+            result = {:type => 'path', :steps => [result]}
             step[:stages] = step.delete(:predicate) if step.key?(:predicate)
           end
           if step.key?(:stages)
-            step[:stages].push({ type: 'index', value: expr[:rhs][:value], position: expr[:position] })
+            step[:stages].push({:type => 'index', :value => expr[:rhs][:value], :position => expr[:position]})
           else
             step[:index] = expr[:rhs][:value]
           end
           step[:tuple] = true
         when '~>'
-          result = { type: 'apply', value: expr[:value], position: expr[:position] }
+          result = {:type => 'apply', :value => expr[:value], :position => expr[:position]}
           result[:lhs] = process_ast(expr[:lhs])
           result[:rhs] = process_ast(expr[:rhs])
           result[:keep_array] = result[:lhs][:keep_array] || result[:rhs][:keep_array]
         else
-          result = { type: expr[:type], value: expr[:value], position: expr[:position] }
+          result = {:type => expr[:type], :value => expr[:value], :position => expr[:position]}
           result[:lhs] = process_ast(expr[:lhs])
           result[:rhs] = process_ast(expr[:rhs])
           push_ancestry(result, result[:lhs])
           push_ancestry(result, result[:rhs])
         end
       when 'unary'
-        result = { type: expr[:type], value: expr[:value], position: expr[:position] }
+        result = {:type => expr[:type], :value => expr[:value], :position => expr[:position]}
         if expr[:value] == '['
           # array constructor - process each item
           result[:expressions] = expr[:expressions].map do |item|
@@ -1124,7 +1124,7 @@ module Jsonata
           end
         end
       when 'function', 'partial'
-        result = { type: expr[:type], name: expr[:name], value: expr[:value], position: expr[:position] }
+        result = {:type => expr[:type], :name => expr[:name], :value => expr[:value], :position => expr[:position]}
         result[:arguments] = expr[:arguments].map do |arg|
           arg_ast = process_ast(arg)
           push_ancestry(result, arg_ast)
@@ -1133,15 +1133,15 @@ module Jsonata
         result[:procedure] = process_ast(expr[:procedure])
       when 'lambda'
         result = {
-          type: expr[:type],
-          arguments: expr[:arguments],
-          signature: expr[:signature],
-          position: expr[:position]
+          :type      => expr[:type],
+          :arguments => expr[:arguments],
+          :signature => expr[:signature],
+          :position  => expr[:position]
         }
         body = process_ast(expr[:body])
         result[:body] = tail_call_optimize(body)
       when 'condition'
-        result = { type: expr[:type], position: expr[:position] }
+        result = {:type => expr[:type], :position => expr[:position]}
         result[:condition] = process_ast(expr[:condition])
         push_ancestry(result, result[:condition])
         result[:then] = process_ast(expr[:then])
@@ -1151,12 +1151,12 @@ module Jsonata
           push_ancestry(result, result[:else])
         end
       when 'transform'
-        result = { type: expr[:type], position: expr[:position] }
+        result = {:type => expr[:type], :position => expr[:position]}
         result[:pattern] = process_ast(expr[:pattern])
         result[:update] = process_ast(expr[:update])
         result[:delete] = process_ast(expr[:delete]) if expr.key?(:delete)
       when 'block'
-        result = { type: expr[:type], position: expr[:position] }
+        result = {:type => expr[:type], :position => expr[:position]}
         # array of expressions - process each one
         result[:expressions] = expr[:expressions].map do |item|
           part = process_ast(item)
@@ -1167,10 +1167,10 @@ module Jsonata
         # TODO scan the array of expressions to see if any of them assign variables
         # if so, need to mark the block as one that needs to create a new frame
       when 'name'
-        result = { type: 'path', steps: [expr] }
+        result = {:type => 'path', :steps => [expr]}
         result[:keep_singleton_array] = true if expr[:keep_array]
       when 'parent'
-        result = { type: 'parent', slot: { label: "!#{@ancestor_label}", level: 1, index: @ancestor_index } }
+        result = {:type => 'parent', :slot => {:label => "!#{@ancestor_label}", :level => 1, :index => @ancestor_index}}
         @ancestor_label += 1
         @ancestor_index += 1
         @ancestry.push(result)
@@ -1185,7 +1185,7 @@ module Jsonata
           # partial application
           result = expr
         else
-          raise Jsonata::Error.new('S0201', position: expr[:position], token: expr[:value])
+          raise Jsonata::Error.new('S0201', :position => expr[:position], :token => expr[:value])
         end
       when 'error'
         result = expr
@@ -1193,11 +1193,11 @@ module Jsonata
       else
         code = 'S0206'
         code = 'S0207' if node_id(expr) == '(end)'
-        err = Jsonata::Error.new(code, position: expr[:position], token: expr[:value])
+        err = Jsonata::Error.new(code, :position => expr[:position], :token => expr[:value])
         raise err unless @recover
 
         @errors.push(err)
-        return { type: 'error', error: err }
+        return {:type => 'error', :error => err}
       end
       result[:keep_array] = true if expr[:keep_array]
       result

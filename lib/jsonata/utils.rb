@@ -30,7 +30,7 @@ module Jsonata
 
     def push(*items)
       if max_length && length + items.length > max_length
-        raise Jsonata::Error.new('D2015', value: max_length)
+        raise Jsonata::Error.new('D2015', :value => max_length)
       end
 
       super
@@ -46,10 +46,10 @@ module Jsonata
     # @returns true if n is a finite number
     def numeric?(n)
       is_num = false
-      if n.is_a?(Numeric)
-        is_num = !(n.is_a?(Float) && n.nan?)
-        if is_num && n.is_a?(Float) && n.infinite?
-          raise Jsonata::Error.new('D1001', value: n)
+      if n.kind_of?(Numeric)
+        is_num = !(n.kind_of?(Float) && n.nan?)
+        if is_num && n.kind_of?(Float) && n.infinite?
+          raise Jsonata::Error.new('D1001', :value => n)
         end
       end
       is_num
@@ -58,8 +58,8 @@ module Jsonata
     # Returns true if the arg is an array of strings
     def array_of_strings?(arg)
       result = false
-      if arg.is_a?(Array)
-        result = arg.all? { |item| item.is_a?(String) }
+      if arg.kind_of?(Array)
+        result = arg.all?(String)
       end
       result
     end
@@ -67,7 +67,7 @@ module Jsonata
     # Returns true if the arg is an array of numbers
     def array_of_numbers?(arg)
       result = false
-      if arg.is_a?(Array)
+      if arg.kind_of?(Array)
         result = arg.all? { |item| numeric?(item) }
       end
       result
@@ -75,17 +75,17 @@ module Jsonata
 
     # Tests if a value is a sequence
     def sequence?(value)
-      value.is_a?(JArray) && value.sequence == true
+      value.kind_of?(JArray) && value.sequence == true
     end
 
     # @returns true if it is a function (lambda or built-in)
     def function?(arg)
-      arg.is_a?(Lambda) || arg.is_a?(NativeFunction) || callable?(arg)
+      arg.kind_of?(Lambda) || arg.kind_of?(NativeFunction) || callable?(arg)
     end
 
     # Equivalent of JavaScript `typeof arg === 'function'`
     def callable?(arg)
-      arg.is_a?(Proc) || arg.is_a?(Method) || arg.is_a?(Closure)
+      arg.kind_of?(Proc) || arg.kind_of?(Method) || arg.kind_of?(Closure)
     end
 
     # Returns the arity (number of arguments) of the function
@@ -105,8 +105,10 @@ module Jsonata
     end
 
     # Names of the declared parameters of a Ruby callable (used for partial application of native functions)
+    NON_POSITIONAL_PARAMETER_TYPES = %i[block keyrest key keyreq].freeze
+
     def parameter_names(callable)
-      callable.parameters.reject { |type, _| %i[block keyrest key keyreq].include?(type) }.map { |_, name| name.to_s }
+      callable.parameters.filter_map { |type, name| name.to_s unless NON_POSITIONAL_PARAMETER_TYPES.include?(type) }
     end
 
     # Invokes a Ruby callable with JavaScript calling semantics - missing arguments are
@@ -119,7 +121,7 @@ module Jsonata
         args = args.take(max) if args.length > max
         args += Array.new(required - args.length) if args.length < required
       end
-      if callable.is_a?(UnboundMethod)
+      if callable.kind_of?(UnboundMethod)
         callable.bind_call(receiver, *args)
       else
         callable.call(*args)
@@ -145,7 +147,7 @@ module Jsonata
 
     # Tests whether arg is a lambda function
     def lambda?(arg)
-      arg.is_a?(Lambda)
+      arg.kind_of?(Lambda)
     end
 
     # Compares two values for equality
@@ -153,7 +155,7 @@ module Jsonata
     def deep_equal?(lhs, rhs)
       return true if lhs.equal?(rhs)
 
-      if lhs.is_a?(Array) && rhs.is_a?(Array)
+      if lhs.kind_of?(Array) && rhs.kind_of?(Array)
         # both arrays (or sequences)
         # must be the same length
         return false if lhs.length != rhs.length
@@ -164,7 +166,7 @@ module Jsonata
         end
         return true
       end
-      if lhs.is_a?(Hash) && rhs.is_a?(Hash)
+      if lhs.kind_of?(Hash) && rhs.kind_of?(Hash)
         # both objects
         # must have the same set of keys (in any order)
         return false if lhs.length != rhs.length
@@ -179,16 +181,16 @@ module Jsonata
         end
         return true
       end
-      return false if lhs.is_a?(Array) || lhs.is_a?(Hash) || rhs.is_a?(Array) || rhs.is_a?(Hash)
+      return false if lhs.kind_of?(Array) || lhs.kind_of?(Hash) || rhs.kind_of?(Array) || rhs.kind_of?(Hash)
 
       strict_equal?(lhs, rhs)
     end
 
     # Equivalent of the JavaScript `===` operator
     def strict_equal?(lhs, rhs)
-      if lhs.is_a?(Numeric) && rhs.is_a?(Numeric)
+      if lhs.kind_of?(Numeric) && rhs.kind_of?(Numeric)
         lhs == rhs
-      elsif lhs.is_a?(String) && rhs.is_a?(String)
+      elsif lhs.kind_of?(String) && rhs.kind_of?(String)
         lhs == rhs
       else
         lhs.equal?(rhs)
@@ -229,14 +231,14 @@ module Jsonata
     def truthy?(value)
       case value
       when nil, false, NULL, '' then false
-      when Numeric then !(value.zero? || (value.is_a?(Float) && value.nan?))
+      when Numeric then !(value.zero? || (value.kind_of?(Float) && value.nan?))
       else true
       end
     end
 
     # Converts a numeric result of a floating point operation to an Integer, if it is integral
     def normalize_number(num)
-      if num.is_a?(Float) && num.finite? && num == num.truncate && num.abs < 9_007_199_254_740_992
+      if num.kind_of?(Float) && num.finite? && num == num.truncate && num.abs < 9_007_199_254_740_992
         num.to_i
       else
         num
@@ -245,12 +247,12 @@ module Jsonata
 
     # Equivalent of JavaScript Number.isInteger
     def integer?(value)
-      value.is_a?(Integer) || (value.is_a?(Float) && value.finite? && value == value.truncate)
+      value.kind_of?(Integer) || (value.kind_of?(Float) && value.finite? && value == value.truncate)
     end
 
     # Equivalent of the JavaScript Number::toString() algorithm
     def number_to_s(num)
-      if num.is_a?(Integer)
+      if num.kind_of?(Integer)
         return num.to_s if num.abs < 10**21
 
         num = num.to_f
@@ -261,7 +263,7 @@ module Jsonata
 
       digits, point = shortest_digits(num.abs)
       k = digits.length
-      str = if k <= point && point <= 21
+      str = if point.between?(k, 21)
               digits + ('0' * (point - k))
             elsif point.positive? && point <= 21
               "#{digits[0, point]}.#{digits[point..]}"
@@ -290,11 +292,11 @@ module Jsonata
 
     # Equivalent of JavaScript Number.prototype.toFixed
     def to_fixed(num, digits)
-      return number_to_s(num) if num.is_a?(Float) && !num.finite?
+      return number_to_s(num) if num.kind_of?(Float) && !num.finite?
       return number_to_s(num) if num.abs >= 1e21
 
       negative = num.negative?
-      scaled = (num.abs.to_r * (10**digits)).round(half: :up)
+      scaled = (num.abs.to_r * (10**digits)).round(:half => :up)
       str = scaled.to_s
       if digits.positive?
         str = str.rjust(digits + 1, '0')
@@ -313,7 +315,7 @@ module Jsonata
       e += 1 while exact >= Rational(10)**(e + 1)
       e -= 1 while exact < Rational(10)**e
       scale = Rational(10)**(precision - 1 - e)
-      n = (exact * scale).round(half: :up)
+      n = (exact * scale).round(:half => :up)
       result = (n / scale).to_f
       num.negative? ? -result : result
     end
@@ -337,7 +339,7 @@ module Jsonata
       end
       from = relative.call(start)
       to = end_pos.nil? ? len : relative.call(end_pos)
-      return obj.is_a?(String) ? +'' : [] if to <= from
+      return obj.kind_of?(String) ? +'' : [] if to <= from
 
       obj[from...to]
     end
@@ -392,7 +394,7 @@ module Jsonata
         if unescaped.include?(ch)
           ch
         else
-          ch.bytes.map { |b| format('%%%02X', b) }.join
+          ch.bytes.map { |b| '%%%02X' % b }.join
         end
       end.join
     end
@@ -502,7 +504,7 @@ module Jsonata
     def from_ruby(value)
       case value
       when nil then NULL
-      when Hash then value.each_with_object({}) { |(k, v), h| h[k.is_a?(Symbol) ? k.to_s : k] = from_ruby(v) }
+      when Hash then value.each_with_object({}) { |(k, v), h| h[k.kind_of?(Symbol) ? k.to_s : k] = from_ruby(v) }
       when JArray then value
       when Array then value.map { |v| from_ruby(v) }
       when Symbol then value.to_s
@@ -535,7 +537,7 @@ module Jsonata
       when NULL, true, false then value == NULL ? 'null' : value.to_s
       when String then quote_json_string(value)
       when Numeric
-        value.is_a?(Float) && !value.finite? ? 'null' : number_to_s(value)
+        value.kind_of?(Float) && !value.finite? ? 'null' : number_to_s(value)
       when Array
         return '[]' if value.empty?
 
@@ -569,7 +571,7 @@ module Jsonata
       end
     end
 
-    JSON_ESCAPES = { '"' => '\\"', '\\' => '\\\\', "\b" => '\\b', "\f" => '\\f', "\n" => '\\n', "\r" => '\\r', "\t" => '\\t' }.freeze
+    JSON_ESCAPES = {'"' => '\\"', '\\' => '\\\\', "\b" => '\\b', "\f" => '\\f', "\n" => '\\n', "\r" => '\\r', "\t" => '\\t'}.freeze
 
     def quote_json_string(str)
       unless str.valid_encoding?
@@ -579,20 +581,20 @@ module Jsonata
           bytes = run.scan(/\h\h/).map(&:hex)
           bytes.each_slice(3).map do |b0, b1, b2|
             codepoint = ((b0 & 0x0F) << 12) | (((b1 || 0) & 0x3F) << 6) | ((b2 || 0) & 0x3F)
-            format('\\u%04x', codepoint)
+            '\\u%04x' % codepoint
           end.join
         end
       end
 
       escaped = str.gsub(/["\\\u0000-\u001f]/) do |ch|
-        JSON_ESCAPES[ch] || format('\\u%04x', ch.ord)
+        JSON_ESCAPES[ch] || ('\\u%04x' % ch.ord)
       end
       "\"#{escaped}\""
     end
 
     # Equivalent of Math.floor - the result is an Integer only if it can be represented exactly
     def js_floor(num)
-      num.is_a?(Integer) ? num : normalize_number(num.floor.to_f)
+      num.kind_of?(Integer) ? num : normalize_number(num.floor.to_f)
     end
   end
 end
