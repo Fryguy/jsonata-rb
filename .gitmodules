@@ -1,0 +1,3 @@
+[submodule "vendor/jsonata-js"]
+	path = vendor/jsonata-js
+	url = https://github.com/jsonata-js/jsonata.git
