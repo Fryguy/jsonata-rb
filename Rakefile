@@ -18,24 +18,24 @@ task :console do
   IRB.start
 end
 
-UPSTREAM_DIR = 'vendor/jsonata-js'
+JSONATA_JS_DIR = 'vendor/jsonata-js'
 
-namespace :upstream do
+namespace :jsonata_js do
   # The jsonata-js commit recorded in the superproject (HEAD, falling back to the index)
-  def recorded_upstream_commit
-    commit = `git ls-tree HEAD #{UPSTREAM_DIR} 2>/dev/null`.split[2]
-    commit || `git ls-files -s #{UPSTREAM_DIR}`.split[1]
+  def recorded_jsonata_js_commit
+    commit = `git ls-tree HEAD #{JSONATA_JS_DIR} 2>/dev/null`.split[2]
+    commit || `git ls-files -s #{JSONATA_JS_DIR}`.split[1]
   end
 
-  desc 'Update the jsonata-js submodule to the latest upstream master'
+  desc 'Update the jsonata-js submodule to the latest jsonata-js master'
   task :update do
-    sh "git -C #{UPSTREAM_DIR} fetch origin"
-    sh "git -C #{UPSTREAM_DIR} checkout --quiet origin/master"
-    sh "git -C #{UPSTREAM_DIR} log --oneline #{recorded_upstream_commit}..HEAD -- src test"
+    sh "git -C #{JSONATA_JS_DIR} fetch origin"
+    sh "git -C #{JSONATA_JS_DIR} checkout --quiet origin/master"
+    sh "git -C #{JSONATA_JS_DIR} log --oneline #{recorded_jsonata_js_commit}..HEAD -- src test"
   end
 
   desc 'Show the jsonata-js source and test changes that have not yet been committed to this repo'
   task :diff do
-    sh "git -C #{UPSTREAM_DIR} diff #{recorded_upstream_commit} HEAD -- src test"
+    sh "git -C #{JSONATA_JS_DIR} diff #{recorded_jsonata_js_commit} HEAD -- src test"
   end
 end

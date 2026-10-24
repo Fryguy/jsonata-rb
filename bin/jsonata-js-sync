@@ -1,0 +1,198 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# The steps of the jsonata-js sync workflow (.github/workflows/jsonata-js-sync.yaml), kept here so they can be
+# read, linted and run locally. The workflow runs Claude to port the changes between `update` and `publish`.
+#
+#   bin/jsonata-js-sync check    # is there a new jsonata-js commit that no open sync PR covers yet?
+#   bin/jsonata-js-sync update   # bump the submodule to jsonata-js master, and tell whether src/ or test/ changed
+#   bin/jsonata-js-sync publish  # run rspec and rubocop, then commit, push, open or update the PR, and run CI
+#
+# Results are printed, and written as step outputs to $GITHUB_OUTPUT when it is set. `publish` reads
+# PORT_OUTCOME (the outcome of the Claude step) and BASE (the PR base branch) from the environment.
+# DRY_RUN=1 makes `publish` print the commit message and PR description instead of pushing.
+#
+# This only uses the Ruby standard library, so `check` runs before the workflow sets up Ruby and the bundle.
+
+require 'json'
+require 'open3'
+
+module JsonataJsSync
+  REPO = 'jsonata-js/jsonata'
+  DIR = 'vendor/jsonata-js'
+  BRANCH = 'jsonata-js-sync'
+  SUMMARY_FILE = 'tmp/jsonata-js-sync-summary.md'
+  # Generic, so that it does not need updating with the --model in the workflow
+  CO_AUTHOR = 'Co-Authored-By: Claude <noreply@anthropic.com>'
+  GENERATED_WITH = "\u{1F916} Generated with [Claude Code](https://claude.com/claude-code)"
+  BOT_NAME = 'github-actions[bot]'
+  BOT_EMAIL = '41898282+github-actions[bot]@users.noreply.github.com'
+
+  module_function
+
+  def check
+    recorded = recorded_commit
+    latest = capture('git', 'ls-remote', "https://github.com/#{REPO}.git", 'refs/heads/master').split.first
+    output(:recorded, recorded)
+    if recorded == latest
+      puts "jsonata-js is up to date at #{recorded}"
+      output(:sync, false)
+    elsif open_pr&.fetch('body')&.include?(latest)
+      puts "The open #{BRANCH} PR already syncs jsonata-js #{latest}"
+      output(:sync, false)
+    else
+      output(:sync, true)
+    end
+  end
+
+  def update
+    run('git', 'submodule', 'update', '--init', DIR)
+    run('bundle', 'exec', 'rake', 'jsonata_js:update')
+    output(:latest, submodule_commit)
+    output(:port, port?(recorded_commit))
+  end
+
+  def publish(dry_run: ENV['DRY_RUN'] == '1')
+    recorded = recorded_commit
+    latest = submodule_commit
+    port = port?(recorded)
+    port_failed = port && ENV.fetch('PORT_OUTCOME', 'success') != 'success'
+    checks = {
+      'rspec'   => system('bundle', 'exec', 'rspec'),
+      'rubocop' => system('bundle', 'exec', 'rubocop')
+    }
+    draft = port_failed || !checks.values.all?
+
+    title = "Sync jsonata-js #{recorded[0, 7]}..#{latest[0, 7]}"
+    commits = capture('git', '-C', DIR, 'log', '--format=%h %s', "#{recorded}..#{latest}").lines.map(&:chomp)
+    message = commit_message(title, commits, port)
+    body = pr_body(recorded, latest, commits, port, port_failed, checks)
+
+    if dry_run
+      puts "--- commit message", message, "--- PR description (#{draft ? 'draft' : 'ready'})", body
+      return
+    end
+
+    run('git', 'config', 'user.name', BOT_NAME)
+    run('git', 'config', 'user.email', BOT_EMAIL)
+    run('git', 'checkout', '-B', BRANCH)
+    run('git', 'add', '-A')
+    run('git', 'status', '--short')
+    run('git', 'commit', '--file', '-', :stdin => message)
+    run('git', 'push', '--force', "https://x-access-token:#{ENV.fetch('GH_TOKEN')}@github.com/#{ENV.fetch('GITHUB_REPOSITORY')}.git", "HEAD:#{BRANCH}")
+
+    if open_pr
+      run('gh', 'pr', 'edit', BRANCH, '--title', title, '--body-file', '-', :stdin => body)
+      # gh pr ready fails if the PR is already in the requested state
+      system('gh', 'pr', 'ready', BRANCH, *('--undo' if draft))
+    else
+      run('gh', 'pr', 'create', '--base', ENV.fetch('BASE', 'master'), '--head', BRANCH, '--title', title,
+          '--body-file', '-', *('--draft' if draft), :stdin => body)
+    end
+
+    # Pushes made with GITHUB_TOKEN do not trigger workflows, so run CI on the branch explicitly
+    run('gh', 'workflow', 'run', 'ci.yaml', '--ref', BRANCH)
+  end
+
+  # Commit messages are ASCII only (see AGENTS.md), so non-ASCII characters in jsonata-js commit subjects are dropped
+  def commit_message(title, commits, port)
+    lines = [title, '', 'jsonata-js commits:', '', *commits.map { |c| "- #{github_safe(c)}" }]
+    lines.push('', CO_AUTHOR) if port
+    "#{lines.join("\n").gsub(/[^\t\n\x20-\x7e]/, '')}\n"
+  end
+
+  def pr_body(recorded, latest, commits, port, port_failed, checks)
+    port_summary =
+      if !port
+        'No `src/` or `test/` changes; this only bumps the submodule.'
+      elsif port_failed
+        "The Claude port step failed; see the [workflow run](#{run_url}). This PR needs to be finished by hand."
+      elsif File.size?(SUMMARY_FILE)
+        File.read(SUMMARY_FILE).strip
+      else
+        "Claude did not write a summary; see the [workflow run](#{run_url})."
+      end
+
+    <<~MARKDOWN
+      Syncs `#{DIR}` from #{recorded} to #{latest}
+      ([compare](https://github.com/#{REPO}/compare/#{recorded}...#{latest})).
+
+      ### jsonata-js commits
+
+      #{commits.map { |c| "- #{REPO}@#{github_safe(c)}" }.join("\n")}
+
+      ### Port
+
+      #{port_summary}
+
+      ### Checks
+
+      #{checks.map { |name, passed| "- #{name}: #{passed ? 'pass' : 'fail'}" }.join("\n")}
+
+      ---
+
+      Created by the [jsonata-js sync workflow](#{run_url}). The `#{BRANCH}` branch is rebuilt whenever jsonata-js
+      moves on, so push manual fixes to another branch, or merge this PR first.
+      #{"\n#{GENERATED_WITH}" if port}
+    MARKDOWN
+  end
+
+  # Qualifies jsonata-js issue references (#123), which GitHub would otherwise link to this repo's issues, and
+  # quotes @mentions, so that they do not notify anyone
+  def github_safe(text)
+    text.gsub(/(?<![\w\/])#(\d+)/, "#{REPO}#\\1").gsub(/(?<![\w`])@[\w-]+/, '`\\0`')
+  end
+
+  # The jsonata-js commit recorded in this repo's HEAD
+  def recorded_commit
+    capture('git', 'ls-tree', 'HEAD', DIR).split[2]
+  end
+
+  # The jsonata-js commit checked out in the submodule
+  def submodule_commit
+    capture('git', '-C', DIR, 'rev-parse', 'HEAD').strip
+  end
+
+  # Whether jsonata-js src/ or test/ changed since the recorded commit, i.e. whether there is anything to port
+  def port?(recorded)
+    !system('git', '-C', DIR, 'diff', '--quiet', recorded, 'HEAD', '--', 'src', 'test')
+  end
+
+  # The open sync PR (number and body), or nil
+  def open_pr
+    JSON.parse(capture('gh', 'pr', 'list', '--head', BRANCH, '--state', 'open', '--json', 'number,body')).first
+  end
+
+  def run_url
+    server, repo, id = ENV.values_at('GITHUB_SERVER_URL', 'GITHUB_REPOSITORY', 'GITHUB_RUN_ID')
+    repo ? "#{server}/#{repo}/actions/runs/#{id}" : 'local run'
+  end
+
+  def output(name, value)
+    puts "#{name}=#{value}"
+    File.write(ENV['GITHUB_OUTPUT'], "#{name}=#{value}\n", :mode => 'a') if ENV['GITHUB_OUTPUT']
+    value
+  end
+
+  def capture(*cmd)
+    out, status = Open3.capture2(*cmd)
+    abort("#{cmd.first} #{cmd[1]} failed") unless status.success?
+    out
+  end
+
+  # Commands are not echoed, as the push URL contains the token
+  def run(*cmd, stdin: nil)
+    if stdin
+      out, status = Open3.capture2(*cmd, :stdin_data => stdin)
+      print(out)
+      ok = status.success?
+    else
+      ok = system(*cmd)
+    end
+    abort("#{cmd.first} #{cmd[1]} failed") unless ok
+  end
+end
+
+command = ARGV.first
+abort "usage: #{$PROGRAM_NAME} check|update|publish" unless %w[check update publish].include?(command)
+JsonataJsSync.public_send(command)

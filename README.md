@@ -155,17 +155,23 @@ names (in snake_case), and comments, so that upstream changes can be applied to 
 | `src/utils.js`        | `lib/jsonata/utils.rb` (plus helpers emulating JavaScript)      |
 | `test/run-test-suite.js` | `spec/test_suite_spec.rb`                                    |
 
-### Tracking upstream
+### Tracking jsonata-js
 
-The tests come from the jsonata-js test suite (`vendor/jsonata-js/test/test-suite`). To pick up upstream
+The tests come from the jsonata-js test suite (`vendor/jsonata-js/test/test-suite`). To pick up jsonata-js
 changes:
 
 ```bash
-bundle exec rake upstream:update  # move the submodule to the latest jsonata-js master, and list the new commits
-bundle exec rake upstream:diff    # show the src/ and test/ changes to port
-bundle exec rspec                 # port the src/ changes until the tests pass
-git add vendor/jsonata-js lib     # commit the submodule bump together with the ported changes
+bundle exec rake jsonata_js:update  # move the submodule to the latest jsonata-js master, and list the new commits
+bundle exec rake jsonata_js:diff    # show the src/ and test/ changes to port
+bundle exec rspec                   # port the src/ changes until the tests pass
+git add vendor/jsonata-js lib       # commit the submodule bump together with the ported changes
 ```
+
+The `jsonata-js sync` workflow (`.github/workflows/jsonata-js-sync.yaml`) does this daily: when jsonata-js
+master moves, it bumps the submodule, has Claude port any `src/` and `test/` changes, and opens (or updates) a
+pull request from the `jsonata-js-sync` branch. The PR is a draft if the tests or rubocop fail. The steps are in
+`bin/jsonata-js-sync`; `DRY_RUN=1 bin/jsonata-js-sync publish` shows the commit message and PR description
+for the current submodule checkout without pushing.
 
 ## Versioning
 

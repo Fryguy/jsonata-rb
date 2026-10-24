@@ -14,4 +14,4 @@ and the version follows the jsonata-js version it is ported from (see [Versionin
 - `Expression#assign`, `#register_function`, `#ast`, `#errors` and `#evaluate_raw`
 - `recover`, `timeout`, `stack`, `sequence` and `regex_engine` options
 - The jsonata-js test suite, via a git submodule at `vendor/jsonata-js`
-- `rake upstream:update` and `rake upstream:diff` tasks for tracking jsonata-js
+- `rake jsonata_js:update` and `rake jsonata_js:diff` tasks for tracking jsonata-js

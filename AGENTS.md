@@ -17,7 +17,7 @@ the decisions behind the port and how JavaScript semantics are emulated in Ruby.
   `spec/test_suite_spec.rb`. Do not add hand-written specs for language features. `spec/jsonata_spec.rb` is only
   for the Ruby API (conversion of values, `assign`, `register_function`, errors, ...).
 - **Never edit `vendor/jsonata-js`.** It is a git submodule tracking jsonata-js master. Bump it with
-  `rake upstream:update` and commit the submodule bump together with the ported `lib/` changes.
+  `rake jsonata_js:update` and commit the submodule bump together with the ported `lib/` changes.
 - **ASCII only.** Code, comments and commit messages must not contain non-ASCII characters, including (but not
   limited to) em-dashes and en-dashes, curly quotes, the section sign, Greek letters (e.g. lambda) and
   mathematical symbols (e.g. less-than-or-equal). Use `"\uXXXX"` escapes in string literals that
@@ -32,13 +32,17 @@ the decisions behind the port and how JavaScript semantics are emulated in Ruby.
   to that list (with the reason) over rewriting ported code to satisfy a cop. Review unsafe autocorrections by
   hand - some are wrong here (e.g. `Style/HashExcept` on `#parameters`, or `Style/BitwisePredicate`).
 
-## Porting workflow for upstream changes
+## Porting workflow for jsonata-js changes
 
-1. `bundle exec rake upstream:update` - moves the submodule to upstream master and lists new commits.
-2. `bundle exec rake upstream:diff` - shows the `src/` and `test/` changes since the commit recorded in this repo.
+The `jsonata-js sync` workflow (`.github/workflows/jsonata-js-sync.yaml`) runs these steps daily with Claude and
+opens a PR from the `jsonata-js-sync` branch; they also apply when porting by hand.
+
+1. `bundle exec rake jsonata_js:update` - moves the submodule to jsonata-js master and lists new commits.
+2. `bundle exec rake jsonata_js:diff` - shows the `src/` and `test/` changes since the commit recorded in this repo.
 3. Port each `src/` hunk to the corresponding Ruby file (see the mapping table in the README), at the same place
    in the file.
-4. `bundle exec rspec` (or `GROUP=<group> bundle exec rspec` while iterating) until everything passes.
+4. `bundle exec rspec` (or `GROUP=<group> bundle exec rspec` while iterating) and `bundle exec rubocop` until
+   everything passes.
 5. If `test/run-test-suite.js` changed, port that change to `spec/test_suite_spec.rb`.
 6. Changes to the JS-only mocha tests (`test/*.js` other than `run-test-suite.js`) are not run by this repo;
    only port them if they reveal behavior worth covering in `spec/jsonata_spec.rb`.
