@@ -1,5 +1,9 @@
 # frozen_string_literal: true
 
+# (c) Copyright IBM Corp. 2016, 2018 All Rights Reserved
+#   Project name: JSONata
+#   This project is licensed under the MIT License, see LICENSE
+
 # Port of jsonata-js src/parser.js
 #
 # AST nodes are represented as Hashes with Symbol keys. In jsonata-js, the nodes created by the

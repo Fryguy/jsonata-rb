@@ -1,5 +1,9 @@
 # frozen_string_literal: true
 
+# (c) Copyright IBM Corp. 2016, 2017 All Rights Reserved
+#   Project name: JSONata
+#   This project is licensed under the MIT License, see LICENSE
+
 # Port of jsonata-js src/jsonata.js
 #
 # The JavaScript implementation is asynchronous (async/await); this port is synchronous.

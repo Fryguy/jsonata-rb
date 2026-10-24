@@ -1,5 +1,9 @@
 # frozen_string_literal: true
 
+# (c) Copyright IBM Corp. 2016 All Rights Reserved
+#   Project name: JSONata
+#   This project is licensed under the MIT License, see LICENSE
+
 # Port of jsonata-js test/run-test-suite.js
 #
 # Runs the language-neutral test suite from the jsonata-js git submodule (vendor/jsonata-js/test/test-suite).

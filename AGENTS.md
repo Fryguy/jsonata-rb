@@ -10,6 +10,9 @@ the decisions behind the port and how JavaScript semantics are emulated in Ruby.
 - **Keep the structure diffable.** Ruby files mirror the JS files: same function order, same names (snake_case),
   same comments (including the JSDoc text and TODOs). Ruby-only code is marked with a comment such as
   `(Ruby specific)` or `(jsonata-js: <original construct>)`, so it is clear what is a deviation.
+- **Keep the upstream copyright headers.** Each ported file starts with the IBM copyright header of the JS file it
+  ports (in ASCII, `(c)` for the copyright sign), as required by the MIT license. Copy the header when porting a
+  new file, and update the years if upstream changes them.
 - **Tests come from upstream only.** Language behavior is tested exclusively by the jsonata-js test suite via
   `spec/test_suite_spec.rb`. Do not add hand-written specs for language features. `spec/jsonata_spec.rb` is only
   for the Ruby API (conversion of values, `assign`, `register_function`, errors, ...).

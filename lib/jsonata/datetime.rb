@@ -1,5 +1,9 @@
 # frozen_string_literal: true
 
+# (c) Copyright IBM Corp. 2018 All Rights Reserved
+#   Project name: JSONata
+#   This project is licensed under the MIT License, see LICENSE
+
 # Port of jsonata-js src/datetime.js
 #
 # DateTime formatting and parsing functions
