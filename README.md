@@ -166,6 +166,12 @@ bundle exec rspec                 # port the src/ changes until the tests pass
 git add vendor/jsonata-js lib     # commit the submodule bump together with the ported changes
 ```
 
+## Versioning
+
+For consistency, the gem's version follows the jsonata-js version it is ported from, so `jsonata` 2.2.2
+implements the same language and passes the same test suite as jsonata-js 2.2.2. Releases that contain only
+Ruby-specific changes, between upstream releases, add a fourth segment (e.g. 2.2.2.1).
+
 ## License
 
 The gem is available as open source under the terms of the [MIT License](LICENSE).
