@@ -39,13 +39,19 @@ module Jsonata
     def lookup(name)
       frame = self
       while frame
-        bindings = frame.instance_variable_get(:@bindings)
+        bindings = frame.bindings
         return bindings[name] if bindings.key?(name)
 
-        frame = frame.instance_variable_get(:@enclosing_environment)
+        frame = frame.enclosing_environment
       end
       nil
     end
+
+    protected
+
+    attr_reader :bindings, :enclosing_environment
+
+    public
 
     # (jsonata-js: exec_env.createSequence)
     def create_sequence(*args)

@@ -114,11 +114,9 @@ module Jsonata
     # If `receiver` is given and the callable is an UnboundMethod, it is bound to the receiver
     # (the equivalent of Function.prototype.apply(this, args))
     def invoke(callable, args, receiver = nil)
-      params = callable.parameters
-      unless params.any? { |type, _| type == :rest }
-        required = params.count { |type, _| type == :req }
-        optional = params.count { |type, _| type == :opt }
-        args = args.take(required + optional)
+      required, max = invoke_arity(callable)
+      unless max.nil?
+        args = args.take(max) if args.length > max
         args += Array.new(required - args.length) if args.length < required
       end
       if callable.is_a?(UnboundMethod)
@@ -126,6 +124,23 @@ module Jsonata
       else
         callable.call(*args)
       end
+    end
+
+    INVOKE_ARITY_CACHE = ObjectSpace::WeakMap.new
+
+    # The number of required parameters, and the maximum number of arguments (nil if unlimited) of a callable
+    def invoke_arity(callable)
+      cached = INVOKE_ARITY_CACHE[callable]
+      return cached if cached
+
+      params = callable.parameters
+      arity = if params.any? { |type, _| type == :rest }
+                [0, nil]
+              else
+                required = params.count { |type, _| type == :req }
+                [required, required + params.count { |type, _| type == :opt }]
+              end
+      INVOKE_ARITY_CACHE[callable] = arity.freeze
     end
 
     # Tests whether arg is a lambda function

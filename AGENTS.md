@@ -23,6 +23,9 @@ the decisions behind the port and how JavaScript semantics are emulated in Ruby.
   mathematical symbols (e.g. less-than-or-equal). Use `"\uXXXX"` escapes in string literals that
   need non-ASCII characters, and ASCII equivalents in comments.
 - **LF line endings.** Enforced by `.gitattributes`; never commit CRLF.
+- **Optimize within Ruby, not by changing the algorithm.** Performance work may change how the Ruby is written
+  (e.g. caching in the Ruby-only helpers in `utils.rb`), but must not change the logic ported from jsonata-js.
+  Algorithmic improvements should be proposed upstream first, and then ported.
 - **Ruby >= 3.1.** Do not use syntax or core methods newer than 3.1.
 
 ## Porting workflow for upstream changes
