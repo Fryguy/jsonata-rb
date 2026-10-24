@@ -98,8 +98,8 @@ module Jsonata
       @block = block
     end
 
-    def call(*)
-      @block.call(*)
+    def call(*args)
+      @block.call(*args)
     end
 
     def parameters

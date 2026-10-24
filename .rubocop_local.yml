@@ -1,3 +1,7 @@
+# The minimum supported Ruby version (see the gemspec); manageiq-style targets a newer one.
+AllCops:
+  TargetRubyVersion: 3.1
+
 # This is not a Rails project, and the suggested corrections (e.g. blank?) need ActiveSupport.
 Rails:
   Enabled: false
