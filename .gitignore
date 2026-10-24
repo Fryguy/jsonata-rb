@@ -43,3 +43,6 @@ Desktop.ini
 *.bak
 *.swp
 *.swo
+
+# Bundler (this is a library)
+Gemfile.lock
