@@ -34,8 +34,11 @@ the decisions behind the port and how JavaScript semantics are emulated in Ruby.
 
 ## Porting workflow for jsonata-js changes
 
-The `jsonata-js sync` workflow (`.github/workflows/jsonata-js-sync.yaml`) runs these steps daily with Claude and
-opens a PR from the `jsonata-js-sync` branch; they also apply when porting by hand.
+The `jsonata-js sync` workflow (`.github/workflows/jsonata-js-sync.yaml`) runs these steps daily with Claude, once
+per jsonata-js commit (with the submodule already checked out at that commit, so step 1 is skipped), and commits
+each port separately on the `jsonata-js-sync` branch; they also apply when porting by hand. Merge the sync PR with
+"Rebase and merge", so that each jsonata-js commit keeps a matching commit on master: the `jsonata-js tags` workflow
+(`.github/workflows/jsonata-js-tags.yaml`) gives the commit syncing a jsonata-js release tag the same tag.
 
 1. `bundle exec rake jsonata_js:update` - moves the submodule to jsonata-js master and lists new commits.
 2. `bundle exec rake jsonata_js:diff` - shows the `src/` and `test/` changes since the commit recorded in this repo.

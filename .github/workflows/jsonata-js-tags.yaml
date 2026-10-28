@@ -1,0 +1,28 @@
+name: jsonata-js tags
+# When jsonata-js tags a release on master, give the commit that syncs that jsonata-js commit the same tag. Every
+# tag is checked on every run, so tags added later to older jsonata-js commits are picked up too. This does not
+# release the gem. The steps are in bin/jsonata-js-sync.
+on:
+  push:
+    branches:
+    - master
+  schedule:
+  - cron: '0 7 * * *' # daily at 07:00 (UTC), after the jsonata-js sync
+  workflow_dispatch:
+concurrency:
+  group: "${{ github.workflow }}"
+  cancel-in-progress: false
+permissions:
+  contents: write # push tags
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        fetch-depth: 0 # the full history and tags, to find the commits that sync each jsonata-js tag
+        persist-credentials: false
+    - name: Tag jsonata-js releases
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: bin/jsonata-js-sync tag

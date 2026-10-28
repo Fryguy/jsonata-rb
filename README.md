@@ -167,11 +167,20 @@ bundle exec rspec                   # port the src/ changes until the tests pass
 git add vendor/jsonata-js lib       # commit the submodule bump together with the ported changes
 ```
 
-The `jsonata-js sync` workflow (`.github/workflows/jsonata-js-sync.yaml`) does this daily: when jsonata-js
-master moves, it bumps the submodule, has Claude port any `src/` and `test/` changes, and opens (or updates) a
-pull request from the `jsonata-js-sync` branch. The PR is a draft if the tests or rubocop fail. The steps are in
-`bin/jsonata-js-sync`; `DRY_RUN=1 bin/jsonata-js-sync publish` shows the commit message and PR description
-for the current submodule checkout without pushing.
+The `jsonata-js sync` workflow (`.github/workflows/jsonata-js-sync.yaml`) does this daily, one jsonata-js commit at
+a time: for each new jsonata-js master commit, it bumps the submodule to it, follows a version change in
+`package.json`, has Claude port any `src/` and `test/` changes, and commits. It opens (or updates) a pull request
+from the `jsonata-js-sync` branch, which it rebases onto master on every run, so fixes pushed to the branch are
+kept. If a commit cannot be ported cleanly, it stops there and makes the PR a draft; nothing more is synced until
+the PR is fixed and marked ready for review. Merge the PR with "Rebase and merge" (not squash).
+
+The `jsonata-js tags` workflow (`.github/workflows/jsonata-js-tags.yaml`) then gives the commit that syncs a
+jsonata-js release tag the same tag (if its version matches), including tags that jsonata-js adds to older
+commits later. It does not release the gem.
+
+The steps of both are in `bin/jsonata-js-sync`. With `DRY_RUN=1`, `bin/jsonata-js-sync sync` commits to a local
+`jsonata-js-sync` branch and prints the PR description, and `bin/jsonata-js-sync tag` tags locally, without
+pushing.
 
 ## Versioning
 
