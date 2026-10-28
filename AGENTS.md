@@ -112,7 +112,7 @@ each port separately on the `jsonata-js-sync` branch; they also apply when porti
 - Regex literals are parsed into `Parser::RegexLiteral` (source + flags) and translated by `Utils.js_regexp`:
   `^`/`$` become `\A`/`\z` unless the `m` flag is set, `[]` and `[^]` are rewritten, and `(?a)` is prepended so
   `\w`, `\d`, `\b` are ASCII-only as in JS.
-- `RegExp.lastIndex` is emulated with a `last_index` variable captured by the matcher closure in
+- `RegExp.lastIndex` is emulated with a `re_last_index` variable captured by the matcher closure in
   `evaluate_regex`.
 - The jsonata-js `RegexEngine` option is the `:regex_engine` option: a callable `(source, flags)` returning an
   object that responds to `match(str, pos)`.

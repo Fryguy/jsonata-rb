@@ -851,22 +851,24 @@ module Jsonata
     def evaluate_regex(expr, _input, environment)
       engine = environment.base.regex_engine
       re = engine ? engine.call(expr[:value].source, expr[:value].flags) : expr[:value].regexp
-      last_index = 0
+      # (jsonata-js: re.lastIndex)
+      re_last_index = 0
       closure = nil
       closure = lambda do |str, from_index = nil|
         result = nil
-        last_index = from_index || 0
-        match = last_index > str.length ? nil : re.match(str, last_index)
+        re_last_index = from_index || 0
+        match = re_last_index > str.length ? nil : re.match(str, re_last_index)
         if match.nil?
-          last_index = 0
+          re_last_index = 0
         else
-          last_index = match.end(0)
+          re_last_index = match.end(0)
           result = {
             'match'  => match[0],
             'start'  => match.begin(0),
             'end'    => match.end(0),
             'groups' => match.captures
           }
+          last_index = re_last_index
           result['next'] = lambda do
             if last_index >= str.length
               nil
