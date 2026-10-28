@@ -10,7 +10,7 @@ Gem::Specification.new do |spec|
 
   spec.summary = 'JSONata query and transformation language for Ruby'
   spec.description = 'A Ruby port of jsonata-js, the reference implementation of JSONata - a lightweight query and transformation language for JSON data'
-  spec.homepage = 'https://github.com/yourusername/jsonata-rb'
+  spec.homepage = 'https://github.com/Fryguy/jsonata-rb'
   spec.license = 'MIT'
   spec.required_ruby_version = '>= 3.1.0'
 
