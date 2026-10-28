@@ -218,6 +218,11 @@ module Jsonata
       width = width.truncate
       pad_length = width.abs - length(str)
       if pad_length.positive?
+        # limit the length of the padding to ten million characters (1e7) to
+        # protect against excessive memory allocation, consistent with the hard
+        # limit imposed by the range operator (see error D2014)
+        raise Jsonata::Error.new('D2016', :value => pad_length) if pad_length > 1e7
+
         padding = char * pad_length
         padding = substring(padding, 0, pad_length) if char.length > 1
         if width.positive?
