@@ -303,7 +303,7 @@ module Jsonata
     # @returns The array of match objects
     def replace(str, pattern, replacement, limit)
       # undefined inputs always return undefined
-      return nil if str.nil?
+      return nil if str.nil? || pattern.nil?
 
       # pattern cannot be an empty string
       raise Jsonata::Error.new('D3010', :value => pattern, :index => 2) if pattern == ''
@@ -488,7 +488,7 @@ module Jsonata
     # @returns The array of string
     def split(str, separator, limit)
       # undefined inputs always return undefined
-      return nil if str.nil?
+      return nil if str.nil? || separator.nil?
 
       # limit, if specified, must be a non-negative number
       raise Jsonata::Error.new('D3020', :value => limit, :index => 3) if !limit.nil? && limit.negative?
