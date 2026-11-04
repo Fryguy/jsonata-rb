@@ -1547,13 +1547,8 @@ module Jsonata
       end
       @environment = Evaluator.create_frame(Evaluator::STATIC_FRAME)
 
-      @timestamp = current_time # will be overridden on each call to evalute()
-      @environment.bind('now', Evaluator.define_function(lambda do |picture, timezone|
-        Evaluator::FN.from_millis(millis(@timestamp), picture, timezone)
-      end, '<s?s?:s>'))
-      @environment.bind('millis', Evaluator.define_function(lambda do
-        millis(@timestamp)
-      end, '<:n>'))
+      @environment.bind('now', Evaluator.define_function(Focus.instance_method(:expression_now), '<s?s?:s>'))
+      @environment.bind('millis', Evaluator.define_function(Focus.instance_method(:expression_millis), '<:n>'))
     end
 
     # Evaluates the expression against the input, returning plain Ruby values
@@ -1587,8 +1582,7 @@ module Jsonata
 
       # capture the timestamp and put it in the execution environment
       # the $now() and $millis() functions will return this value - whenever it is called
-      @timestamp = current_time
-      exec_env.timestamp = @timestamp
+      exec_env.timestamp = current_time
       exec_env.options = @options
 
       exec_env.base = exec_env
@@ -1664,9 +1658,18 @@ module Jsonata
     def current_millis
       Process.clock_gettime(Process::CLOCK_REALTIME, :millisecond)
     end
+  end
 
-    def millis(time)
-      (time.to_r * 1000).floor
+  # (Ruby specific) The implementations of $now() and $millis(). jsonata-js defines them as anonymous functions in
+  # jsonata(), reading `this.environment.timestamp`; here they are Focus methods, so that they are invoked with the
+  # Focus as `this`.
+  class Focus
+    def expression_now(picture, timezone)
+      from_millis(expression_millis, picture, timezone)
+    end
+
+    def expression_millis
+      (environment.timestamp.to_r * 1000).floor
     end
   end
 end
