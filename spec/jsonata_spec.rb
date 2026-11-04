@@ -53,6 +53,21 @@ RSpec.describe Jsonata do
         expect(described_class.new('null').evaluate_raw).to be(Jsonata::NULL)
         expect(described_class.new('nothing').evaluate_raw({})).to be_nil
       end
+
+      it 'keeps $millis() and $now() fixed within each of overlapping evaluations' do
+        expr = described_class.new('($m := $millis(); $n := $now(); $pause($m); [$m = $millis(), $n = $now()])')
+        second_millis = nil
+        second = nil
+        pause_first = lambda do |first_millis|
+          # make sure the overlapping evaluation captures a later timestamp
+          sleep(0.001) while Process.clock_gettime(Process::CLOCK_REALTIME, :millisecond) <= first_millis
+          second = expr.evaluate(nil, :pause => ->(millis) { second_millis = millis })
+          expect(second_millis).to be > first_millis
+          nil
+        end
+        expect(expr.evaluate(nil, :pause => pause_first)).to eq([true, true])
+        expect(second).to eq([true, true])
+      end
     end
 
     describe '#assign' do
