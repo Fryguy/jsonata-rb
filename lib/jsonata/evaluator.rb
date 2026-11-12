@@ -191,8 +191,8 @@ module Jsonata
                end
 
       if expr.key?(:predicate)
-        expr[:predicate].each do |predicate|
-          result = evaluate_filter(predicate[:expr], result, environment)
+        expr[:predicate].each_with_index do |predicate, ii|
+          result = evaluate_filter(predicate[:expr], result, environment, ii < expr[:predicate].length - 1)
         end
       end
 
@@ -303,8 +303,8 @@ module Jsonata
 
       input.each do |item|
         res = evaluate(expr, item, environment)
-        expr[:stages]&.each do |stage|
-          res = evaluate_filter(stage[:expr], res, environment)
+        expr[:stages]&.each_with_index do |stage, ss|
+          res = evaluate_filter(stage[:expr], res, environment, ss < expr[:stages].length - 1)
         end
         result.push(res) unless res.nil?
       end
@@ -330,10 +330,11 @@ module Jsonata
 
     def evaluate_stages(stages, input, environment)
       result = input
-      stages.each do |stage|
+      stages.each_with_index do |stage, ss|
         case stage[:type]
         when 'filter'
-          result = evaluate_filter(stage[:expr], result, environment)
+          result = evaluate_filter(stage[:expr], result, environment,
+                                   ss < stages.length - 1 && stages[ss + 1][:type] == 'filter')
         when 'index'
           result.each_with_index do |tuple, ee|
             tuple[stage[:value]] = ee
@@ -401,8 +402,9 @@ module Jsonata
     # Apply filter predicate to input data
     # @param predicate - filter expression
     # @param input - Input data to apply predicates against
+    # @param chained - another predicate will be applied to the result
     # @returns Result after applying predicates
-    def evaluate_filter(predicate, input, environment)
+    def evaluate_filter(predicate, input, environment, chained)
       results = environment.base.create_sequence
       results.tuple_stream = true if input.kind_of?(JArray) && input.tuple_stream
       input = environment.base.create_sequence(input) unless input.kind_of?(Array)
@@ -421,6 +423,9 @@ module Jsonata
           end
         end
       else
+        # the position selected by the predicate, while it evaluates to the same number for every item
+        position = nil
+        same_position = true
         input.each_with_index do |item, index|
           context = item
           env = environment
@@ -429,7 +434,11 @@ module Jsonata
             env = create_frame_from_tuple(environment, item)
           end
           res = evaluate(predicate, context, env)
-          res = [res] if Utils.numeric?(res)
+          if Utils.numeric?(res)
+            res = [res]
+          else
+            same_position = false
+          end
           if Utils.array_of_numbers?(res)
             res.each do |ires|
               # round it down
@@ -438,11 +447,19 @@ module Jsonata
                 # count in from end of array
                 ii = input.length + ii
               end
+              same_position = false if index.positive? && ii != position
+              position = ii
               results.push(item) if ii == index
             end
           elsif FN.boolean(res) # truthy
             results.push(item)
           end
+        end
+        if chained && same_position && results.length == 1 && results[0].kind_of?(Array)
+          # an expression that evaluates to the same number for every item selects an array the same way
+          # a literal index does, so the next predicate is applied to that array rather than to a sequence
+          # containing it
+          results = results[0]
         end
       end
       results
