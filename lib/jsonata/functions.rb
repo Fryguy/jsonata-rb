@@ -1399,25 +1399,32 @@ module Jsonata
         comp = comparator
       end
 
+      # iterative merge: a recursive merge would hold one pending call and one copy of the remaining
+      # input per element, so memory would grow quadratically with the array size
       merge = lambda do |l, r|
-        # (merge_iter in jsonata-js; implemented iteratively here to avoid deep recursion)
-        result = []
-        left = 0
-        right = 0
-        while left < l.length && right < r.length
-          if call_function(comp, [l[left], r[right]]) # invoke the comparator function
+        merged = []
+        left_index = 0
+        right_index = 0
+        while left_index < l.length && right_index < r.length
+          if call_function(comp, [l[left_index], r[right_index]]) # invoke the comparator function
             # if it returns true - swap left and right
-            result.push(r[right])
-            right += 1
+            merged.push(r[right_index])
+            right_index += 1
           else
             # otherwise keep the same order
-            result.push(l[left])
-            left += 1
+            merged.push(l[left_index])
+            left_index += 1
           end
         end
-        result.concat(l[left..]) if left < l.length
-        result.concat(r[right..]) if right < r.length
-        result
+        while left_index < l.length
+          merged.push(l[left_index])
+          left_index += 1
+        end
+        while right_index < r.length
+          merged.push(r[right_index])
+          right_index += 1
+        end
+        merged
       end
 
       msort = lambda do |array|
