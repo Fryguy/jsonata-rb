@@ -374,7 +374,7 @@ module Jsonata
         # res is the binding sequence for the output tuple stream
         next if res.nil?
 
-        res = [res] unless res.kind_of?(Array)
+        res = [res] if !res.kind_of?(Array) || (res.kind_of?(JArray) && res.cons && !expr[:stages])
         res.each_with_index do |item, bb|
           tuple = {}
           tuple.merge!(binding)
