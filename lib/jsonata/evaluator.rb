@@ -476,8 +476,8 @@ module Jsonata
         begin
           return evaluate_boolean_expression(lhs, evalrhs, op)
         rescue Jsonata::Error => e
-          e.position = expr[:position]
-          e.token = op
+          e.position = expr[:position] if e.position.nil?
+          e.token = op if e.token.nil?
           raise
         end
       end
