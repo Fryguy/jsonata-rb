@@ -36,6 +36,8 @@ Style/MultipleComparison:
   Enabled: false
 Style/NegatedIfElseCondition:
   Enabled: false
+Style/Next:
+  Enabled: false
 Style/RedundantAssignment:
   Enabled: false
 

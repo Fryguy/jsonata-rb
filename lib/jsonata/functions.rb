@@ -849,9 +849,11 @@ module Jsonata
         end
       else
         pic[:integer_part_grouping_positions].each do |pos|
-          string_value = [Utils.js_slice(string_value, 0, decimal_pos - pos), grouping_separator,
-                          Utils.js_slice(string_value, decimal_pos - pos)].join
-          decimal_pos += 1
+          if decimal_pos > pos
+            string_value = [Utils.js_slice(string_value, 0, decimal_pos - pos), grouping_separator,
+                            Utils.js_slice(string_value, decimal_pos - pos)].join
+            decimal_pos += 1
+          end
         end
       end
       # bullet 11:
