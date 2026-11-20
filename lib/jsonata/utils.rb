@@ -211,6 +211,30 @@ module Jsonata
       end
     end
 
+    # Converts a non-negative number to a string of plain decimal digits (never exponent notation)
+    # Number.prototype.toFixed falls back to exponent notation for values >= 1e21 (e.g. "1.5e+21")
+    # @param {number} value - the non-negative number to convert
+    # @param {number} [dp] - the number of digits after the decimal point. Defaults to 0
+    # @returns {string} - the decimal string
+    def to_fixed_decimal(value, dp = nil)
+      dp ||= 0
+      str = to_fixed(value, dp)
+      exponent_pos = str.index('e')
+      unless exponent_pos.nil?
+        # only reached for values >= 1e21, so the exponent is always positive
+        mantissa = str[0...exponent_pos]
+        exponent = Integer(str[(exponent_pos + 1)..], 10)
+        point_pos = mantissa.index('.')
+        digits = mantissa.sub('.', '')
+        integer_length = (point_pos.nil? ? mantissa.length : point_pos) + exponent
+        str = digits + ('0' * (integer_length - digits.length))
+        if dp.positive?
+          str += ".#{'0' * dp}"
+        end
+      end
+      str
+    end
+
     ##################################################################
     # JavaScript emulation helpers (not part of utils.js)
     ##################################################################
