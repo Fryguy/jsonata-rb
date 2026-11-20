@@ -812,7 +812,7 @@ module Jsonata
       rounded_number = round(mantissa, pic[:maximum_factional_part_size])
       # bullet 7:
       make_string = lambda do |val, dp|
-        str = Utils.to_fixed(val.abs, dp)
+        str = Utils.to_fixed_decimal(val.abs, dp)
         if zero_digit != '0'
           str = str.each_char.map do |digit|
             if digit.between?('0', '9')
