@@ -916,6 +916,13 @@ module Jsonata
       end
     end
 
+    # add a processed expression to a block (expressions in parentheses)
+    def block_expression(block, part)
+      push_ancestry(block, part)
+      block[:consarray] = true if part[:consarray] || (part[:type] == 'path' && part[:steps][0][:consarray])
+      part
+    end
+
     def resolve_ancestry(path)
       index = path[:steps].length - 1
       laststep = path[:steps][index]
@@ -959,11 +966,20 @@ module Jsonata
         when '.'
           lstep = process_ast(expr[:lhs])
 
-          result = if lstep[:type] == 'path'
-                     lstep
-                   else
-                     {:type => 'path', :steps => [lstep]}
-                   end
+          if lstep[:type] == 'path' && lstep.key?(:group)
+            # a reduce terminates its path, so the steps that follow it start a new path, as if
+            # the grouped path was in parentheses - i.e. a{k:v}.x is the same as (a{k:v}).x
+            block = {:type => 'block', :position => expr[:lhs][:position]}
+            block[:expressions] = [block_expression(block, lstep)]
+            result = {:type => 'path', :steps => [block]}
+            # but unlike in parentheses, the parent references that the grouped path can't
+            # resolve itself are passed on to be resolved by the enclosing expression
+            push_ancestry(result, block)
+          elsif lstep[:type] == 'path'
+            result = lstep
+          else
+            result = {:type => 'path', :steps => [lstep]}
+          end
           result[:seeking_parent] = [lstep[:slot]] if lstep[:type] == 'parent'
           rest = process_ast(expr[:rhs])
           if rest[:type] == 'path'
@@ -1159,10 +1175,7 @@ module Jsonata
         result = {:type => expr[:type], :position => expr[:position]}
         # array of expressions - process each one
         result[:expressions] = expr[:expressions].map do |item|
-          part = process_ast(item)
-          push_ancestry(result, part)
-          result[:consarray] = true if part[:consarray] || (part[:type] == 'path' && part[:steps][0][:consarray])
-          part
+          block_expression(result, process_ast(item))
         end
         # TODO scan the array of expressions to see if any of them assign variables
         # if so, need to mark the block as one that needs to create a new frame
