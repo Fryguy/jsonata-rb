@@ -764,7 +764,11 @@ module Jsonata
       # TODO cache the result of the analysis
 
       # format the number
-      # bullet 1: TODO: NaN - not sure we'd ever get this in JSON
+      # bullet 1: JSON can't hold NaN or infinity, but a JavaScript caller can pass them in
+      if value.kind_of?(Float) && value.nan?
+        return properties['NaN']
+      end
+
       # bullet 2:
       pic = if value >= 0
               variables[0]
@@ -779,40 +783,33 @@ module Jsonata
                         else
                           value
                         end
-      # bullet 4:
-      # TODO: infinity - not sure we'd ever get this in JSON
+      # bullet 4: this includes a finite number that overflows when multiplied by 100 or 1000
+      if adjusted_number.kind_of?(Float) && adjusted_number.infinite?
+        return pic[:prefix] + properties['infinity'] + pic[:suffix]
+      end
+
+      # bullets 5 & 6 work on the decimal digits of the number rather than on the double itself,
+      # so that scaling the mantissa by a power of ten and rounding it are both exact
       # bullet 5:
+      mantissa = Utils.decimal_digits(adjusted_number)
       exponent = nil
-      if pic[:minimum_exponent_size].zero?
-        mantissa = adjusted_number
-      else
-        # mantissa * 10^exponent = adjustedNumber
-        max_mantissa = 10.0**pic[:scaling_factor]
-        min_mantissa = 10.0**(pic[:scaling_factor] - 1)
-        mantissa = adjusted_number.to_f
-        exponent = 0
-        # Compare magnitudes; previously `mantissa < minMantissa` was
-        # true for every negative mantissa and `0 * 10 === 0` never
-        # crossed the threshold, producing an infinite loop on zero
-        # and negative inputs (#785). For zero the desired exponent is
-        # simply zero - the XPath F&O Bullet 5 says "if N is zero, set
-        # M to zero and E to zero".
-        unless mantissa.zero?
-          while mantissa.abs < min_mantissa
-            mantissa *= 10
-            exponent -= 1
-          end
-          while mantissa.abs > max_mantissa
-            mantissa /= 10
-            exponent += 1
-          end
-        end
+      if pic[:minimum_exponent_size] != 0
+        # mantissa * 10^exponent = adjustedNumber, with scalingFactor digits before the decimal point of the
+        # mantissa.  If the number is zero, the mantissa and the exponent are both zero
+        exponent = mantissa[:digits] == '0' ? 0 : mantissa[:digits].length + mantissa[:exponent] - pic[:scaling_factor]
+        mantissa[:exponent] -= exponent
       end
       # bullet 6:
-      rounded_number = round(mantissa, pic[:maximum_factional_part_size])
+      rounded_number = Utils.round_decimal_digits(mantissa, pic[:maximum_factional_part_size])
+      if !exponent.nil? && rounded_number[:digits] != '0' &&
+         rounded_number[:digits].length + rounded_number[:exponent] > pic[:scaling_factor]
+        # rounding has carried the mantissa up to 10^scalingFactor, so divide it by ten
+        rounded_number = Utils.round_decimal_digits({:digits => rounded_number[:digits], :exponent => rounded_number[:exponent] - 1},
+                                                    pic[:maximum_factional_part_size])
+        exponent += 1
+      end
       # bullet 7:
-      make_string = lambda do |val, dp|
-        str = Utils.to_fixed_decimal(val.abs, dp)
+      make_string = lambda do |str|
         if zero_digit != '0'
           str = str.each_char.map do |digit|
             if digit.between?('0', '9')
@@ -824,7 +821,7 @@ module Jsonata
         end
         str
       end
-      string_value = make_string.call(rounded_number, pic[:maximum_factional_part_size])
+      string_value = make_string.call(Utils.decimal_digits_to_string(rounded_number, pic[:maximum_factional_part_size]))
       decimal_pos = string_value.index('.')
       string_value = if decimal_pos.nil?
                        string_value + decimal_separator
@@ -869,7 +866,7 @@ module Jsonata
       end
       # bullet 13:
       unless exponent.nil?
-        string_exponent = make_string.call(exponent, 0)
+        string_exponent = make_string.call(exponent.abs.to_s)
         pad_left = pic[:minimum_exponent_size] - string_exponent.length
         string_exponent = (zero_digit * pad_left) + string_exponent if pad_left.positive?
         string_value = string_value + properties['exponent-separator'] + (exponent.negative? ? minus_sign : '') + string_exponent
