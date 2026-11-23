@@ -234,10 +234,7 @@ module Jsonata
           formatted_integer = formatted_integer.downcase
         end
       when FORMATS[:DECIMAL]
-        formatted_integer = Utils.number_to_s(value)
-        if formatted_integer.include?('e')
-          formatted_integer = Utils.to_fixed_decimal(value)
-        end
+        formatted_integer = Utils.decimal_digits_to_string(Utils.decimal_digits(value), 0)
         # TODO use functionPad
         pad_length = format[:mandatory_digits] - formatted_integer.length
         if pad_length.positive?

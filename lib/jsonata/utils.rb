@@ -211,28 +211,76 @@ module Jsonata
       end
     end
 
-    # Converts a non-negative number to a string of plain decimal digits (never exponent notation)
-    # Number.prototype.toFixed falls back to exponent notation for values >= 1e21 (e.g. "1.5e+21")
-    # @param {number} value - the non-negative number to convert
-    # @param {number} [dp] - the number of digits after the decimal point. Defaults to 0
-    # @returns {string} - the decimal string
-    def to_fixed_decimal(value, dp = nil)
-      dp ||= 0
-      str = to_fixed(value, dp)
-      exponent_pos = str.index('e')
-      unless exponent_pos.nil?
-        # only reached for values >= 1e21, so the exponent is always positive
-        mantissa = str[0...exponent_pos]
-        exponent = Integer(str[(exponent_pos + 1)..], 10)
-        point_pos = mantissa.index('.')
-        digits = mantissa.sub('.', '')
-        integer_length = (point_pos.nil? ? mantissa.length : point_pos) + exponent
-        str = digits + ('0' * (integer_length - digits.length))
-        if dp.positive?
-          str += ".#{'0' * dp}"
-        end
+    # Returns a string of zeros
+    # @param {number} count - the number of zeros
+    # @returns {string} - the zeros, or an empty string if count is not positive
+    def zeros(count)
+      count.positive? ? '0' * count : ''
+    end
+
+    # Returns the decimal digits of a finite number.  As XPath F&O 3.1 section 4.7.5 requires, these are the digits
+    # of the shortest decimal that converts back to the same number (which Number.prototype.toString produces),
+    # rather than the digits of its exact binary value (which toFixed uses)
+    # @param {number} value - the number; its sign is ignored
+    # @returns {{digits: string, exponent: number}} - the digits without leading zeros, and the power of ten of the
+    #   last one
+    def decimal_digits(value)
+      parts = number_to_s(value.abs).split('e')
+      mantissa = parts[0].split('.')
+      fraction = mantissa[1] || ''
+      digits = (mantissa[0] + fraction).sub(/\A0+/, '')
+      if digits == ''
+        return {:digits => '0', :exponent => 0}
       end
-      str
+
+      {:digits => digits, :exponent => (parts[1] ? Integer(parts[1], 10) : 0) - fraction.length}
+    end
+
+    # Rounds decimal digits half-to-even to the given number of decimal places
+    # @param {{digits: string, exponent: number}} number - the digits, and the power of ten of the last one
+    # @param {number} dp - the number of decimal places
+    # @returns {{digits: string, exponent: number}} - the rounded digits
+    def round_decimal_digits(number, dp)
+      drop_count = -number[:exponent] - dp
+      if drop_count <= 0
+        return number
+      end
+
+      digits = zeros(drop_count - number[:digits].length) + number[:digits]
+      kept = digits[0, digits.length - drop_count]
+      dropped = digits[(digits.length - drop_count)..]
+      last_kept = kept.length.positive? ? Integer(kept[-1], 10) : 0
+      if dropped[0] > '5' || (dropped[0] == '5' && (dropped[1..].match?(/[1-9]/) || last_kept.odd?))
+        # add one to the kept digits
+        ii = kept.length - 1
+        ii -= 1 while ii >= 0 && kept[ii] == '9'
+        kept = (ii.negative? ? '1' : kept[0, ii] + (Integer(kept[ii], 10) + 1).to_s) + zeros(kept.length - ii - 1)
+      end
+      # (jsonata-js: kept.replace(/^0+/, '') || '0')
+      kept = kept.sub(/\A0+/, '')
+      {:digits => kept.empty? ? '0' : kept, :exponent => -dp}
+    end
+
+    # Writes decimal digits out in full (never exponent notation), with exactly the given number of decimal places.
+    # The digits must already be rounded to that number of decimal places
+    # @param {{digits: string, exponent: number}} number - the digits, and the power of ten of the last one
+    # @param {number} dp - the number of decimal places
+    # @returns {string} - the decimal string
+    def decimal_digits_to_string(number, dp)
+      digits = number[:digits]
+      if number[:exponent] >= 0
+        integer_part = digits + zeros(number[:exponent])
+        fractional_part = ''
+      else
+        digits = zeros(-number[:exponent] - digits.length) + digits
+        integer_part = digits[0, digits.length + number[:exponent]]
+        fractional_part = digits[(digits.length + number[:exponent])..]
+      end
+      # (jsonata-js: integerPart.replace(/^0+/, '') || '0')
+      integer_part = integer_part.sub(/\A0+/, '')
+      integer_part = '0' if integer_part.empty?
+      fractional_part += zeros(dp - fractional_part.length)
+      dp.positive? ? "#{integer_part}.#{fractional_part}" : integer_part
     end
 
     ##################################################################
