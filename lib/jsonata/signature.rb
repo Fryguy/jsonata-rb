@@ -24,7 +24,7 @@ module Jsonata
     attr_reader :definition
 
     # Parses a function signature definition and returns a validation function
-    # @param signature - the signature between the <angle brackets>
+    # @param signature [String] the signature between the <angle brackets>
     def initialize(signature)
       @definition = signature
       # create a Regex that represents this signature and return a function that when invoked,

@@ -42,8 +42,8 @@ module Jsonata
     module_function
 
     # Check if value is a finite number
-    # @param n - number to evaluate
-    # @returns true if n is a finite number
+    # @param n [Float] number to evaluate
+    # @return [Boolean] true if n is a finite number
     def numeric?(n)
       is_num = false
       if n.kind_of?(Numeric)
@@ -78,7 +78,7 @@ module Jsonata
       value.kind_of?(JArray) && value.sequence == true
     end
 
-    # @returns true if it is a function (lambda or built-in)
+    # @return [Boolean] true if it is a function (lambda or built-in)
     def function?(arg)
       arg.kind_of?(Lambda) || arg.kind_of?(NativeFunction) || callable?(arg)
     end
@@ -151,7 +151,7 @@ module Jsonata
     end
 
     # Compares two values for equality
-    # @returns true if they are deep equal
+    # @return [Boolean] true if they are deep equal
     def deep_equal?(lhs, rhs)
       return true if lhs.equal?(rhs)
 
@@ -202,7 +202,7 @@ module Jsonata
       str.chars
     end
 
-    # @returns the keys (property names) of the object
+    # @return [Array] the keys (property names) of the object
     def keys(arg)
       case arg
       when Hash then arg.keys
@@ -212,8 +212,8 @@ module Jsonata
     end
 
     # Returns a string of zeros
-    # @param {number} count - the number of zeros
-    # @returns {string} - the zeros, or an empty string if count is not positive
+    # @param count [Numeric] the number of zeros
+    # @return [String] the zeros, or an empty string if count is not positive
     def zeros(count)
       count.positive? ? '0' * count : ''
     end
@@ -221,8 +221,8 @@ module Jsonata
     # Returns the decimal digits of a finite number.  As XPath F&O 3.1 section 4.7.5 requires, these are the digits
     # of the shortest decimal that converts back to the same number (which Number.prototype.toString produces),
     # rather than the digits of its exact binary value (which toFixed uses)
-    # @param {number} value - the number; its sign is ignored
-    # @returns {{digits: string, exponent: number}} - the digits without leading zeros, and the power of ten of the
+    # @param value [Numeric] the number; its sign is ignored
+    # @return [Hash] the digits without leading zeros, and the power of ten of the
     #   last one
     def decimal_digits(value)
       parts = number_to_s(value.abs).split('e')
@@ -237,9 +237,9 @@ module Jsonata
     end
 
     # Rounds decimal digits half-to-even to the given number of decimal places
-    # @param {{digits: string, exponent: number}} number - the digits, and the power of ten of the last one
-    # @param {number} dp - the number of decimal places
-    # @returns {{digits: string, exponent: number}} - the rounded digits
+    # @param number [Hash] the digits, and the power of ten of the last one
+    # @param dp [Numeric] the number of decimal places
+    # @return [Hash] the rounded digits
     def round_decimal_digits(number, dp)
       drop_count = -number[:exponent] - dp
       if drop_count <= 0
@@ -263,9 +263,9 @@ module Jsonata
 
     # Writes decimal digits out in full (never exponent notation), with exactly the given number of decimal places.
     # The digits must already be rounded to that number of decimal places
-    # @param {{digits: string, exponent: number}} number - the digits, and the power of ten of the last one
-    # @param {number} dp - the number of decimal places
-    # @returns {string} - the decimal string
+    # @param number [Hash] the digits, and the power of ten of the last one
+    # @param dp [Numeric] the number of decimal places
+    # @return [String] the decimal string
     def decimal_digits_to_string(number, dp)
       digits = number[:digits]
       if number[:exponent] >= 0
@@ -458,7 +458,7 @@ module Jsonata
     URI_RESERVED = ';/?:@&=+$,#'
 
     # Equivalent of encodeURI / encodeURIComponent
-    # @param unescaped - the set of characters that are not escaped
+    # @param unescaped [String] the set of characters that are not escaped
     def encode_uri(str, unescaped)
       raise URIError unless str.valid_encoding?
 
@@ -472,7 +472,7 @@ module Jsonata
     end
 
     # Equivalent of decodeURI / decodeURIComponent
-    # @param reserved - the set of characters whose escape sequences are not decoded
+    # @param reserved [String] the set of characters whose escape sequences are not decoded
     def decode_uri(str, reserved)
       result = +''
       k = 0
@@ -526,8 +526,8 @@ module Jsonata
     end
 
     # Translates a JavaScript regular expression into a Ruby Regexp
-    # @param source - the JavaScript regex pattern
-    # @param flags - the JavaScript regex flags (only 'i' and 'm' are significant)
+    # @param source [String] the JavaScript regex pattern
+    # @param flags [String] the JavaScript regex flags (only 'i' and 'm' are significant)
     def js_regexp(source, flags = '')
       multiline = flags.include?('m')
       out = +''
@@ -596,8 +596,8 @@ module Jsonata
     end
 
     # JSON.stringify with JavaScript semantics
-    # @param replacer - optional proc(value) returning the replaced value
-    # @param space - number of spaces to indent
+    # @param replacer [Proc, nil] optional proc(value) returning the replaced value
+    # @param space [Integer] number of spaces to indent
     def json_stringify(value, replacer = nil, space = 0)
       value = replacer.call(value) if replacer
       stringify_value(value, replacer, space, '')

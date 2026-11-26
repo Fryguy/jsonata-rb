@@ -92,8 +92,8 @@ module Jsonata
     end
 
     # parses and evaluates the supplied expression
-    # @param expr - expression to evaluate
-    # @returns result of evaluating the expression
+    # @param expr [String] expression to evaluate
+    # @return [Object] result of evaluating the expression
     def function_eval(expr, focus)
       # undefined inputs always return undefined
       return nil if expr.nil?
@@ -127,8 +127,8 @@ module Jsonata
     end
 
     # Clones an object
-    # @param arg - object to clone (deep copy)
-    # @returns the cloned object
+    # @param arg [Object] object to clone (deep copy)
+    # @return [Object] the cloned object
     def function_clone(arg)
       # undefined inputs always return undefined
       return nil if arg.nil?
@@ -141,10 +141,10 @@ module Jsonata
     module_function
 
     # Evaluate expression against input data
-    # @param expr - JSONata expression
-    # @param input - Input data to evaluate against
-    # @param environment - Environment
-    # @returns Evaluated input data
+    # @param expr [Object] JSONata expression
+    # @param input [Object] Input data to evaluate against
+    # @param environment [Object] Environment
+    # @return [Object] Evaluated input data
     def evaluate(expr, input, environment)
       environment.base.depth += 1
       environment.base.guardrails.call
@@ -291,7 +291,7 @@ module Jsonata
     end
 
     # Evaluate a step within a path
-    # @param last_step - flag the last step in a path
+    # @param last_step [Boolean] flag the last step in a path
     def evaluate_step(expr, input, environment, last_step)
       if expr[:type] == 'sort'
         result = evaluate_sort_expression(expr, input, environment)
@@ -345,7 +345,7 @@ module Jsonata
     end
 
     # Evaluate a step within a path
-    # @param tuple_bindings - The tuple stream
+    # @param tuple_bindings [Object] The tuple stream
     def evaluate_tuple_step(expr, input, tuple_bindings, environment)
       if expr[:type] == 'sort'
         if tuple_bindings
@@ -400,10 +400,10 @@ module Jsonata
     end
 
     # Apply filter predicate to input data
-    # @param predicate - filter expression
-    # @param input - Input data to apply predicates against
-    # @param chained - another predicate will be applied to the result
-    # @returns Result after applying predicates
+    # @param predicate [Object] filter expression
+    # @param input [Object] Input data to apply predicates against
+    # @param chained [Boolean] another predicate will be applied to the result
+    # @return [Object] Result after applying predicates
     def evaluate_filter(predicate, input, environment, chained)
       results = environment.base.create_sequence
       results.tuple_stream = true if input.kind_of?(JArray) && input.tuple_stream
@@ -580,8 +580,8 @@ module Jsonata
     end
 
     # Returns a flattened array
-    # @param arg - the array to be flatten
-    # @param flattened - carries the flattened array - if not defined, will initialize to []
+    # @param arg [Array] the array to be flatten
+    # @param flattened [Array] carries the flattened array - if not defined, will initialize to []
     def flatten(arg, flattened = [])
       if arg.kind_of?(Array)
         arg.each do |item|
@@ -686,7 +686,7 @@ module Jsonata
     end
 
     # Inclusion operator - in
-    # @returns true if lhs is a member of rhs
+    # @return [Boolean] true if lhs is a member of rhs
     def evaluate_includes_expression(lhs, rhs)
       # if either side is undefined, the result is false
       return false if lhs.nil? || rhs.nil?
@@ -697,7 +697,7 @@ module Jsonata
     end
 
     # Evaluate boolean expression against input data
-    # @param evalrhs - function to evaluate RHS value
+    # @param evalrhs [Lambda, NativeFunction, Proc] function to evaluate RHS value
     def evaluate_boolean_expression(lhs, evalrhs, op)
       l_bool = boolize(lhs)
 
@@ -799,7 +799,7 @@ module Jsonata
     end
 
     # Evaluate range expression against input data
-    # @returns Resultant array
+    # @return [Array] Resultant array
     def evaluate_range_expression(lhs, rhs, environment)
       raise Jsonata::Error.new('T2003', :value => lhs) if !lhs.nil? && !Utils.integer?(lhs)
       raise Jsonata::Error.new('T2004', :value => rhs) if !rhs.nil? && !Utils.integer?(rhs)
@@ -863,8 +863,8 @@ module Jsonata
     end
 
     # Prepare a regex
-    # @param expr - expression containing regex
-    # @returns Higher order function representing prepared regex
+    # @param expr [Object] expression containing regex
+    # @return [Lambda, NativeFunction, Proc] Higher order function representing prepared regex
     def evaluate_regex(expr, _input, environment)
       engine = environment.base.regex_engine
       re = engine ? engine.call(expr[:value].source, expr[:value].flags) : expr[:value].regexp
@@ -918,8 +918,8 @@ module Jsonata
     end
 
     # sort / order-by operator
-    # @param expr - AST for operator
-    # @returns Ordered sequence
+    # @param expr [Object] AST for operator
+    # @return [Object] Ordered sequence
     def evaluate_sort_expression(expr, input, environment)
       # evaluate the lhs, then sort the results in order according to rhs expression
       lhs = input
@@ -989,8 +989,8 @@ module Jsonata
     end
 
     # create a transformer function
-    # @param expr - AST for operator
-    # @returns tranformer function
+    # @param expr [Object] AST for operator
+    # @return [Object] tranformer function
     def evaluate_transform_expression(expr, _input, environment)
       # create a function to implement the transform definition
       transformer = lambda do |obj| # signature <(oa):o>
@@ -1121,9 +1121,9 @@ module Jsonata
     end
 
     # Apply procedure or function
-    # @param proc - Procedure
-    # @param args - Arguments
-    # @returns Result of procedure
+    # @param proc [Object] Procedure
+    # @param args [Array] Arguments
+    # @return [Object] Result of procedure
     def apply(proc, args, input, environment)
       result = apply_inner(proc, args, input, environment)
       while Utils.lambda?(result) && result.thunk == true
@@ -1145,9 +1145,9 @@ module Jsonata
     end
 
     # Apply procedure or function
-    # @param proc - Procedure
-    # @param args - Arguments
-    # @returns Result of procedure
+    # @param proc [Object] Procedure
+    # @param args [Array] Arguments
+    # @return [Object] Result of procedure
     def apply_inner(proc, args, input, environment)
       validated_args = args
       if Utils.truthy?(proc) && (proc.kind_of?(Lambda) || proc.kind_of?(NativeFunction))
@@ -1227,10 +1227,10 @@ module Jsonata
     end
 
     # Validate the arguments against the signature validator (if it exists)
-    # @param signature - validator function
-    # @param args - function arguments
-    # @param context - context value
-    # @returns validated arguments
+    # @param signature [Lambda, NativeFunction, Proc] validator function
+    # @param args [Array] function arguments
+    # @param context [Object] context value
+    # @return [Array] validated arguments
     def validate_arguments(signature, args, context)
       # nothing to validate
       return args if signature.nil?
@@ -1253,8 +1253,8 @@ module Jsonata
     end
 
     # Partially apply procedure
-    # @param proc - Procedure (a Lambda, or the AST of a lambda wrapping a native function)
-    # @returns Result of partially applied procedure
+    # @param proc [Object] Procedure (a Lambda, or the AST of a lambda wrapping a native function)
+    # @return [Lambda] Result of partially applied procedure
     def partial_apply_procedure(proc, args, environment)
       proc = Lambda.new(:arguments => proc[:arguments], :body => proc[:body]) if proc.kind_of?(Hash)
       # create a closure, bind the supplied parameters and return a function that takes the remaining (?) parameters
@@ -1277,8 +1277,8 @@ module Jsonata
     end
 
     # Partially apply native function
-    # @param native - Native function
-    # @returns Result of partially applying native function
+    # @param native [Lambda, NativeFunction, Proc] Native function
+    # @return [Lambda] Result of partially applying native function
     def partial_apply_native_function(native, args, environment)
       # create a lambda function that wraps and invokes the native function
       # get the list of declared arguments from the native function
@@ -1303,23 +1303,23 @@ module Jsonata
     end
 
     # Get native function arguments
-    # @param func - Function
-    # @returns Native function arguments
+    # @param func [Lambda, NativeFunction, Proc] Function
+    # @return [Object, Array] Native function arguments
     def get_native_function_arguments(func)
       Utils.parameter_names(func)
     end
 
     # Creates a function definition
-    # @param func - function implementation in Ruby
-    # @param signature - JSONata function signature definition
-    # @returns function definition
+    # @param func [Lambda, NativeFunction, Proc] function implementation in Ruby
+    # @param signature [String] JSONata function signature definition
+    # @return [NativeFunction] function definition
     def define_function(func, signature = nil)
       NativeFunction.new(func, signature.nil? ? nil : Signature.new(signature))
     end
 
     # Create frame
-    # @param enclosing_environment - Enclosing environment
-    # @returns Created frame
+    # @param enclosing_environment [Object] Enclosing environment
+    # @return [Frame] Created frame
     def create_frame(enclosing_environment)
       Frame.new(enclosing_environment)
     end
@@ -1327,7 +1327,7 @@ module Jsonata
     # lookup a message template from the catalog and substitute the inserts.
     # Populates `err.message` with the substituted message. Leaves `err.message`
     # untouched if code lookup fails.
-    # @param err - error to populate
+    # @param err [String] error to populate
     def populate_message(err)
       template = ERROR_CODES[err.code]
       return if template.nil?
@@ -1545,8 +1545,8 @@ module Jsonata
 
   # A compiled JSONata expression (jsonata-js: the object returned by `jsonata(expr, options)`)
   class Expression
-    # @param expr - JSONata expression
-    # @param options
+    # @param expr [String] JSONata expression
+    # @param options [Hash, nil] options
     # @option options [Boolean] :recover attempt to recover on parse error
     # @option options [Proc] :regex_engine callable(source, flags) returning an object that responds to `match(str, pos)`
     # @option options [Integer] :timeout evaluation timeout (milliseconds)
@@ -1570,8 +1570,10 @@ module Jsonata
 
     # Evaluates the expression against the input, returning plain Ruby values
     # (JSON null and undefined are both returned as nil)
-    # @param input - Input data to evaluate against
-    # @param bindings - Hash of variable bindings
+    # @param input [Object] Input data to evaluate against
+    # @param bindings [Hash, nil] variable bindings
+    # @return [Object] the result of the evaluation
+    # @raise [Jsonata::Error] if the evaluation fails
     def evaluate(input = nil, bindings = nil, &)
       Utils.to_ruby(evaluate_raw(input.nil? ? nil : Utils.from_ruby(input), bindings, &))
     end
@@ -1579,6 +1581,10 @@ module Jsonata
     # Evaluates the expression, returning the internal representation of the result, in which JSON null is
     # represented by Jsonata::NULL and undefined by nil.
     # Nested nils in the input are treated as JSON null, a top-level nil input is treated as undefined.
+    # @param input [Object] Input data to evaluate against
+    # @param bindings [Hash, nil] variable bindings
+    # @return [Object] the result of the evaluation
+    # @raise [Jsonata::Error] if the evaluation fails
     def evaluate_raw(input = nil, bindings = nil, &callback)
       # throw if the expression compiled with syntax errors
       unless @errors.nil?
@@ -1646,12 +1652,18 @@ module Jsonata
       end
     end
 
+    # Binds a value to a variable in the expression's environment
+    # @param name [String, Symbol] the variable name (without the leading `$`)
+    # @param value [Object] the value to bind
     def assign(name, value)
       @environment.bind(name.kind_of?(Symbol) && !name.to_s.start_with?('jsonata.') ? name.to_s : name,
                         value.nil? ? nil : Utils.from_ruby(value))
     end
 
     # Registers a Ruby function, which may be given as a callable or a block
+    # @param name [String, Symbol] the function name (without the leading `$`)
+    # @param implementation [Proc, Method, nil] the function implementation, unless given as a block
+    # @param signature [String, nil] JSONata function signature definition, e.g. `'<nn:n>'`
     # @example
     #   expr.register_function('add', ->(a, b) { a + b }, '<nn:n>')
     #   expr.register_function('greet', '<s:s>') { |name| "Hello, #{name}" }

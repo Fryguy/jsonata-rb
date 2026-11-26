@@ -10,6 +10,14 @@ the decisions behind the port and how JavaScript semantics are emulated in Ruby.
 - **Keep the structure diffable.** Ruby files mirror the JS files: same function order, same names (snake_case),
   same comments (including the JSDoc text and TODOs). Ruby-only code is marked with a comment such as
   `(Ruby specific)` or `(jsonata-js: <original construct>)`, so it is clear what is a deviation.
+- **Doc comments are YARD.** Port JSDoc blocks to YARD tags, keeping the description text as-is:
+  `@param {Type} name - desc` becomes `@param name [Type] desc`, `@returns {Type} desc` becomes
+  `@return [Type] desc`, and `@throws desc` becomes `@raise [Jsonata::Error] desc`. Use the parameter name of
+  the Ruby method (snake_case). Translate the JS types to Ruby: `Object`/`object`/`*` -> `Object`,
+  `string` -> `String`, `number` -> `Numeric`, `Integer` -> `Integer`, `float` -> `Float`, `boolean` ->
+  `Boolean`, `Array`/`*[]` -> `Array`, `Function` -> `Lambda, NativeFunction, Proc`, `undefined` -> `nil`,
+  `A|B` -> `A, B`, and object literal types to the Ruby class representing them (e.g. `{{bind, lookup}}` ->
+  `Frame`, `{{lambda: ...}}` -> `Lambda`), or `Hash`. Ruby-only methods also use YARD tags.
 - **Keep the upstream copyright headers.** Each ported file starts with the IBM copyright header of the JS file it
   ports (in ASCII, `(c)` for the copyright sign), as required by the MIT license. Copy the header when porting a
   new file, and update the years if upstream changes them.
