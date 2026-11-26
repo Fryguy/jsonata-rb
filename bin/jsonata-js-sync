@@ -32,6 +32,8 @@ module JsonataJsSync
   BRANCH = 'jsonata-js-sync'
   VERSION_FILE = 'lib/jsonata/version.rb'
   SUMMARY_FILE = 'tmp/jsonata-js-sync-summary.md'
+  CODEOWNERS_FILE = '.github/CODEOWNERS'
+  SHORT_SHA = 8 # the length of abbreviated commit SHAs in commit messages and the PR
   # The model that ports the changes, and the attribution for its commits and PRs; update them together
   CLAUDE_MODEL = 'claude-opus-5-5'
   CO_AUTHOR = 'Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>'
@@ -83,7 +85,7 @@ module JsonataJsSync
 
     checks = run_checks
     draft = !!failed || !checks.values.all?
-    title = "Sync jsonata-js #{base_recorded[0, 7]}..#{recorded_commit[0, 7]}"
+    title = "Sync jsonata-js #{short(base_recorded)}..#{short(recorded_commit)}"
     body = pr_body(base, base_recorded, rebuilt, failed, checks)
 
     if dry_run
@@ -132,7 +134,7 @@ module JsonataJsSync
     previous = recorded_commit
     run('git', '-C', DIR, 'checkout', '--quiet', commit)
     subject = capture('git', '-C', DIR, 'log', '-1', '--format=%s', commit).strip
-    puts "=== #{commit[0, 7]} #{subject}"
+    puts "=== #{short(commit)} #{subject}"
 
     notes = []
     version = upstream_version(commit)
@@ -179,7 +181,9 @@ module JsonataJsSync
         a draft PR for a human to finish.
       - When done, write a summary for the commit message to #{SUMMARY_FILE} (Markdown, no headings, ASCII only):
         what changed in jsonata-js, how it was ported (by file), any deviations from the JS and why, and anything
-        unfinished or worth a reviewer's attention.
+        unfinished or worth a reviewer's attention. Leave out what goes without saying: do not say that there are
+        no deviations, or that the tests, rspec or rubocop pass (the commit is only made when they do, and CI runs
+        them). Refer to jsonata-js pull requests and issues as "PR 123" and "issue 123", without "#".
     PROMPT
     # Claude does not need the GitHub token, so keep it out of reach of the commands it runs
     env = {'GH_TOKEN' => nil, 'GITHUB_TOKEN' => nil}
@@ -197,40 +201,44 @@ module JsonataJsSync
   # Commit messages are ASCII only (see AGENTS.md), so non-ASCII characters (e.g. in jsonata-js commit subjects)
   # are dropped
   def commit_message(commit, subject, notes, port)
-    lines = ["Sync jsonata-js #{commit[0, 7]}: #{github_safe(subject)}", '',
-             "jsonata-js commit: `#{REPO}@#{commit}`", '', github_safe(notes.join("\n\n"))]
+    lines = ["Sync jsonata-js #{short(commit)}: #{github_safe(subject)}", '',
+             commit_ref(commit), '', github_safe(notes.join("\n\n"))]
     lines.push('', CO_AUTHOR) if port
     "#{lines.join("\n").gsub(/[^\t\n\x20-\x7e]/, '')}\n"
   end
 
-  # The PR description lists the commits on the branch, with their messages (the sync commits' port summaries)
+  # The PR description lists the commits on the branch, each in a collapsed section with its message (the sync
+  # commits' port summaries)
   def pr_body(base, base_recorded, rebuilt, failed, checks)
     latest = recorded_commit
     commits = capture('git', 'log', '--reverse', '--format=%s%x00%b%x1e', "#{base}..HEAD").split("\x1e")[0..-2].map do |c|
       subject, body = c.strip.split("\0", 2)
       body = body.to_s.sub(/^Co-Authored-By: .*\n?/i, '').strip
-      "#### #{subject}\n\n#{body}".strip
+      "<details>\n<summary>#{summary_html(subject)}</summary>\n\n#{body}\n\n</details>"
     end
     notes = []
     notes << "Rebasing onto `#{base_branch}` conflicted, so the branch was rebuilt from it." if rebuilt
     if failed
-      notes << "Stopped at jsonata-js `#{failed[0, 7]}`, which needs to be finished by hand; later jsonata-js " \
-               'commits are synced once this PR is marked ready for review.'
+      notes << "Stopped at #{commit_ref(failed)}, which needs to be finished by hand; later jsonata-js commits " \
+               'are synced once this PR is marked ready for review.'
     end
+    failing = checks.reject { |_, passed| passed }.keys
+    notes << "Failing on the branch: #{failing.join(', ')}." if failing.any?
+    # The directive to the code owners, who are pinged to review
+    merge = "**Merge with \"Rebase and merge\"** (not squash), so that jsonata-js release tags can be matched to " \
+            "commits on `#{base_branch}`."
+    owners = codeowners
+    merge = "#{owners.join(' ')} Please review. #{merge}" if owners.any?
 
     <<~MARKDOWN
-      Syncs `#{DIR}` from `#{base_recorded}` to `#{latest}`
-      ([compare](https://github.com/#{REPO}/compare/#{base_recorded}...#{latest})), one commit per jsonata-js
-      commit. **Merge with "Rebase and merge"** (not squash), so that jsonata-js release tags can be matched to
-      commits on `#{base_branch}`.
+      Syncs `#{DIR}` from #{commit_ref(base_recorded)} to #{commit_ref(latest)}
+      ([compare](https://github.com/#{REPO}/compare/#{base_recorded}...#{latest})), one commit per jsonata-js commit.
       #{notes.map { |n| "\n#{n}\n" }.join}
+      #{merge}
+
       ### Commits
 
       #{commits.join("\n\n")}
-
-      ### Checks
-
-      #{checks.map { |name, passed| "- #{name}: #{passed ? 'pass' : 'fail'}" }.join("\n")}
 
       ---
 
@@ -268,11 +276,11 @@ module JsonataJsSync
           unmatched << name
         end
       elsif (version = version_at(commit)) != name.delete_prefix('v')
-        puts "Not tagging #{name}: #{commit[0, 7]} syncs jsonata-js #{name}, but has version #{version}"
+        puts "Not tagging #{name}: #{short(commit)} syncs jsonata-js #{name}, but has version #{version}"
       else
         run('git', 'tag', '--annotate', name, '--message', name, commit)
         run('git', 'push', remote_url, "refs/tags/#{name}") unless dry_run
-        tagged << "#{name} (#{commit[0, 7]})"
+        tagged << "#{name} (#{short(commit)})"
       end
     end
 
@@ -309,19 +317,46 @@ module JsonataJsSync
   # Rewrites issue and PR references (#123, GH-123, owner/repo#123 and issue or PR URLs) as plain text, and quotes
   # @mentions. Otherwise GitHub would link #123 to this repo's issues, add a "mentioned this" entry to the
   # jsonata-js issue or PR (which is spam there), or notify someone. Commit references (owner/repo@sha) are fine,
-  # as commits have no timeline.
+  # as commits have no timeline. Code spans are left as they are, as GitHub does not link or mention in them (and
+  # they may contain e.g. the $formatNumber picture '#,##0').
   def github_safe(text)
-    text
-      .gsub(%r{https://github\.com/([\w.-]+/[\w.-]+)/(issues|pull)/(\d+)\b}) do
-        "#{reference_repo(Regexp.last_match(1))} #{Regexp.last_match(2) == 'pull' ? 'PR' : 'issue'} #{Regexp.last_match(3)}"
-      end
-      .gsub(%r{\b([\w.-]+/[\w.-]+)#(\d+)\b}) { "#{reference_repo(Regexp.last_match(1))} PR #{Regexp.last_match(2)}" }
-      .gsub(/(?<![\w\/&])(?:#|\bGH-)(\d+)\b/) { "jsonata-js PR #{Regexp.last_match(1)}" }
-      .gsub(/(?<![\w`])@[\w-]+/, '`\\0`')
+    text.split(/(`[^`\n]*`)/).map { |part| part.start_with?('`') ? part : github_safe_text(part) }.join
   end
 
+  def github_safe_text(text)
+    text
+      .gsub(%r{https://github\.com/([\w.-]+/[\w.-]+)/(issues|pull)/(\d+)\b}) do
+        [reference_repo(Regexp.last_match(1)), Regexp.last_match(2) == 'pull' ? 'PR' : 'issue', Regexp.last_match(3)].compact.join(' ')
+      end
+      .gsub(%r{\b([\w.-]+/[\w.-]+)#(\d+)\b}) { [reference_repo(Regexp.last_match(1)), 'PR', Regexp.last_match(2)].compact.join(' ') }
+      .gsub(/(?<![\w\/&#])(?:#|\bGH-)(\d+)\b/) { "PR #{Regexp.last_match(1)}" }
+      .gsub(/(?<!\w)@[\w-]+/, '`\\0`')
+  end
+
+  # References to jsonata-js are unqualified ("PR 123"), as the sync commits and PR are about jsonata-js
   def reference_repo(repo)
-    repo == REPO ? 'jsonata-js' : repo
+    repo == REPO ? nil : repo
+  end
+
+  def short(commit)
+    commit[0, SHORT_SHA]
+  end
+
+  # A jsonata-js commit reference, which GitHub links to the commit
+  def commit_ref(commit)
+    "#{REPO}@#{short(commit)}"
+  end
+
+  # A commit subject as HTML for a <summary> element, where Markdown is not rendered: escaped, with `code` spans
+  def summary_html(subject)
+    subject.gsub('&', '&amp;').gsub('<', '&lt;').gsub('>', '&gt;').gsub(/`([^`]+)`/, '<code>\\1</code>')
+  end
+
+  # The owners of all files (the * pattern) in CODEOWNERS, to ping in the PR
+  def codeowners
+    return [] unless File.exist?(CODEOWNERS_FILE)
+
+    File.readlines(CODEOWNERS_FILE).map { |l| l.sub(/#.*/, '').split }.select { |pattern, *| pattern == '*' }.flat_map { |_, *o| o }.uniq
   end
 
   # The jsonata-js commit recorded in this repo's HEAD
