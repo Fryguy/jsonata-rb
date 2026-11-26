@@ -11,8 +11,12 @@
 # `sync` rebases an open sync PR onto master (rebuilding it from master if that conflicts), then for each
 # jsonata-js master commit after the one recorded in the branch: checks the submodule out at that commit, follows
 # a version change in package.json, has Claude port any src/ or test/ changes, runs rspec and rubocop, and
-# commits. It stops at the first commit that fails, and opens the PR as a draft; while the PR is a draft, `check`
-# does not add more commits on top of it. The sync PR must be merged with "Rebase and merge", so that every
+# commits. It stops at the first commit that fails, commits it with a `Sync-Status: incomplete` trailer (shown as
+# a failed commit in the PR description), and opens the PR as a draft; while the PR is a draft, `check` does not
+# add more commits on top of it. If the Claude API fails (e.g. credits run out, or the network is down), it also
+# stops, comments on the PR to ping the code owners, and fails the run: when Claude left no changes, the commit is
+# not made (so the next run retries it) and the PR is not made a draft; when it left partial work, that work is
+# committed as an incomplete commit. The sync PR must be merged with "Rebase and merge", so that every
 # jsonata-js commit keeps a matching commit on master, which `tag` can tag (it finds commits by their submodule
 # commit, so the new SHAs do not matter).
 #
@@ -34,10 +38,17 @@ module JsonataJsSync
   SUMMARY_FILE = 'tmp/jsonata-js-sync-summary.md'
   CODEOWNERS_FILE = '.github/CODEOWNERS'
   SHORT_SHA = 8 # the length of abbreviated commit SHAs in commit messages and the PR
+  # The trailer marking a commit that needs to be finished by hand; remove it when amending the commit
+  INCOMPLETE_TRAILER = 'Sync-Status: incomplete'
+  INCOMPLETE_TRAILER_LINE = /^#{Regexp.escape(INCOMPLETE_TRAILER)}$/i
+  INCOMPLETE_MARK = "\u274C " # how the PR description marks such commits (a red cross)
+  # The trailers that are left out of the commit messages shown in the PR description
+  HIDDEN_TRAILERS = /^(Co-Authored-By: .*|#{Regexp.escape(INCOMPLETE_TRAILER)})\n?/i
   # The model that ports the changes, and the attribution for its commits and PRs; update them together
   CLAUDE_MODEL = 'claude-opus-5-5'
   CO_AUTHOR = 'Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>'
   GENERATED_WITH = "\u{1F916} Generated with [Claude Code](https://claude.com/claude-code) using Claude Opus 5.5"
+  API_ERROR_MESSAGE = /\A(Credit balance is too low|Invalid API key|API Error\b)/i
   BOT_NAME = 'github-actions[bot]'
   BOT_EMAIL = '41898282+github-actions[bot]@users.noreply.github.com'
   CLAUDE_ALLOWED_TOOLS = [
@@ -75,18 +86,28 @@ module JsonataJsSync
     run('git', '-C', DIR, 'fetch', '--quiet', 'origin')
 
     commits = capture('git', '-C', DIR, 'rev-list', '--reverse', '--first-parent', "#{recorded_commit}..origin/master").split
+    commits = commits.first(Integer(ENV['SYNC_LIMIT'])) if ENV['SYNC_LIMIT'] # e.g. to try out changes locally
     puts "jsonata-js commits to sync: #{commits.size}"
-    failed = commits.detect { |commit| !sync_commit(commit) }
+    failure = nil
+    commits.each do |commit|
+      failure = sync_commit(commit)
+      break if failure
+    end
 
     if capture('git', 'rev-list', "#{base}..HEAD").empty?
       puts 'Nothing to publish'
-      return
+    else
+      publish(base, base_recorded, lease, rebuilt, failure, dry_run)
     end
+    report_api_error(failure, dry_run) if failure&.fetch(:api_error)
+  end
 
+  # Pushes the branch, and opens or updates the PR (a draft if a commit or the checks failed)
+  def publish(base, base_recorded, lease, rebuilt, failure, dry_run)
     checks = run_checks
-    draft = !!failed || !checks.values.all?
+    draft = !!failure&.fetch(:committed) || !checks.values.all?
     title = "Sync jsonata-js #{short(base_recorded)}..#{short(recorded_commit)}"
-    body = pr_body(base, base_recorded, rebuilt, failed, checks)
+    body = pr_body(base, base_recorded, rebuilt, failure, checks)
 
     if dry_run
       puts "--- PR title", title, "--- PR description (#{draft ? 'draft' : 'ready'})", body
@@ -105,6 +126,28 @@ module JsonataJsSync
 
     # Pushes made with GITHUB_TOKEN do not trigger workflows, so run CI on the branch explicitly
     run('gh', 'workflow', 'run', 'ci.yaml', '--ref', BRANCH)
+  end
+
+  # A Claude API (or Claude Code) failure is not a problem with the port, so ping the code owners on the PR (if
+  # there is one), and fail the run, which notifies too
+  def report_api_error(failure, dry_run)
+    commit = failure.fetch(:commit)
+    outcome = if failure.fetch(:committed)
+                'Its partial work is committed, and the PR is a draft until it is finished by hand.'
+              else
+                'Nothing was committed for it; the next run retries it.'
+              end
+    message = "The jsonata-js sync stopped at #{commit_ref(commit)} because Claude failed to run (not a porting " \
+              "problem): #{failure.fetch(:api_error)}. #{outcome} See the [workflow run](#{run_url})."
+    owners = codeowners
+    comment = owners.any? ? "#{owners.join(' ')} #{message}" : message
+
+    if dry_run
+      puts '--- PR comment', comment
+    elsif open_pr
+      run('gh', 'pr', 'comment', BRANCH, '--body-file', '-', :stdin => comment)
+    end
+    abort(message)
   end
 
   # Checks out the sync branch: the open PR's branch rebased onto base, or else base. Returns the remote branch
@@ -129,7 +172,8 @@ module JsonataJsSync
     [remote, true]
   end
 
-  # Syncs the jsonata-js commit as one commit, and returns whether it ported cleanly
+  # Syncs the jsonata-js commit as one commit. Returns nil if it ported cleanly, and otherwise the failure: the
+  # commit, whether it was committed (as an incomplete commit), and the Claude API error, if that is what failed.
   def sync_commit(commit)
     previous = recorded_commit
     run('git', '-C', DIR, 'checkout', '--quiet', commit)
@@ -145,21 +189,49 @@ module JsonataJsSync
 
     port = port?(previous)
     ok = true
+    api_error = nil
     if port
-      ported = port_commit(previous, commit, subject)
+      before = staged_tree
+      result = port_commit(previous, commit, subject)
+      api_error = result[:api_error]
+      if api_error && staged_tree == before
+        puts "Claude failed to run, without changes: #{api_error}; not committing #{short(commit)}"
+        discard_changes
+        return {:commit => commit, :committed => false, :api_error => api_error}
+      end
+
       checks = run_checks
-      ok = ported && checks.values.all?
+      ok = result[:ok] && checks.values.all?
       notes << (File.size?(SUMMARY_FILE) ? File.read(SUMMARY_FILE).strip : 'Claude did not write a summary.')
-      notes << "The Claude port step failed; see the [workflow run](#{run_url})." unless ported
+      if api_error
+        notes << "Claude failed to run during the port (#{api_error}), so this is the partial work it left; see " \
+                 "the [workflow run](#{run_url})."
+      elsif !result[:ok]
+        notes << "The Claude port step failed; see the [workflow run](#{run_url})."
+      end
       failing = checks.reject { |_, passed| passed }.keys
-      notes << "Failing: #{failing.join(', ')}. This commit needs to be finished by hand." if failing.any?
+      notes << "Failing: #{failing.join(', ')}." if failing.any?
+      notes << 'This commit needs to be finished by hand.' unless ok
     else
       notes << 'No `src/` or `test/` changes; this only bumps the submodule.'
     end
 
     run('git', 'add', '-A')
-    run('git', 'commit', '--quiet', '--file', '-', :stdin => commit_message(commit, subject, notes, port))
-    ok
+    run('git', 'commit', '--quiet', '--file', '-', :stdin => commit_message(commit, subject, notes, port, ok))
+    ok ? nil : {:commit => commit, :committed => true, :api_error => api_error}
+  end
+
+  # The tree of the working directory (staging all changes), to tell whether a step changed anything
+  def staged_tree
+    run('git', 'add', '-A')
+    capture('git', 'write-tree').strip
+  end
+
+  # Drops the uncommitted changes (e.g. a version change), and checks the submodule out at the recorded commit
+  def discard_changes
+    run('git', 'reset', '--quiet', '--hard')
+    run('git', 'clean', '--quiet', '-d', '--force')
+    run('git', 'submodule', 'update', '--quiet', DIR)
   end
 
   def port_commit(previous, commit, subject)
@@ -187,8 +259,34 @@ module JsonataJsSync
     PROMPT
     # Claude does not need the GitHub token, so keep it out of reach of the commands it runs
     env = {'GH_TOKEN' => nil, 'GITHUB_TOKEN' => nil}
-    system(env, 'claude', '-p', prompt, '--model', CLAUDE_MODEL, '--max-turns', '200',
-           '--allowedTools', CLAUDE_ALLOWED_TOOLS.join(','))
+    out, status = Open3.capture2(env, 'claude', '-p', prompt, '--model', CLAUDE_MODEL, '--max-turns', '200',
+                                 '--output-format', 'json', '--allowedTools', CLAUDE_ALLOWED_TOOLS.join(','))
+    claude_result(out, status)
+  end
+
+  # Whether the Claude port step succeeded, and the Claude API error (e.g. no credits, an invalid API key, or a
+  # network failure), if that is why it failed. Claude Code reports API errors with terminal_reason "api_error";
+  # a failure without a result (e.g. Claude Code failed to start) is treated as one too, as no port was attempted.
+  def claude_result(out, status)
+    result = begin
+      JSON.parse(out.lines.last.to_s)
+    rescue JSON::ParserError
+      nil
+    end
+    unless result.kind_of?(Hash)
+      print(out)
+      return {:ok => false, :api_error => "Claude Code exited with status #{status.exitstatus} without a result"}
+    end
+
+    puts(result['result'], %w[subtype terminal_reason num_turns].map { |k| "#{k}: #{result[k]}" }.join(', '))
+    ok = status.success? && !result['is_error']
+    # Also match the messages of API errors, in case a Claude Code version reports them differently (e.g. "Credit
+    # balance is too low", "Invalid API key", "API Error: ...")
+    api_error = result['terminal_reason'] == 'api_error' || (!ok && result['result'].to_s.match?(API_ERROR_MESSAGE))
+    return {:ok => ok} unless api_error
+
+    detail = [result['api_error_status'], result['api_error_type'] || result['api_error']].compact.join(' ')
+    {:ok => false, :api_error => [result['result'], ("(#{detail})" unless detail.empty?)].compact.join(' ')}
   end
 
   def run_checks
@@ -199,28 +297,35 @@ module JsonataJsSync
   end
 
   # Commit messages are ASCII only (see AGENTS.md), so non-ASCII characters (e.g. in jsonata-js commit subjects)
-  # are dropped
-  def commit_message(commit, subject, notes, port)
+  # are dropped. A commit that needs to be finished by hand gets a trailer, which the PR description shows.
+  def commit_message(commit, subject, notes, port, ok)
     lines = ["Sync jsonata-js #{short(commit)}: #{github_safe(subject)}", '',
              commit_ref(commit), '', github_safe(notes.join("\n\n"))]
-    lines.push('', CO_AUTHOR) if port
+    trailers = [(INCOMPLETE_TRAILER unless ok), (CO_AUTHOR if port)].compact
+    lines.push('', *trailers) if trailers.any?
     "#{lines.join("\n").gsub(/[^\t\n\x20-\x7e]/, '')}\n"
   end
 
   # The PR description lists the commits on the branch, each in a collapsed section with its message (the sync
-  # commits' port summaries)
-  def pr_body(base, base_recorded, rebuilt, failed, checks)
+  # commits' port summaries). Commits that need to be finished by hand are marked with a red cross.
+  def pr_body(base, base_recorded, rebuilt, failure, checks)
     latest = recorded_commit
     commits = capture('git', 'log', '--reverse', '--format=%s%x00%b%x1e', "#{base}..HEAD").split("\x1e")[0..-2].map do |c|
       subject, body = c.strip.split("\0", 2)
-      body = body.to_s.sub(/^Co-Authored-By: .*\n?/i, '').strip
-      "<details>\n<summary>#{summary_html(subject)}</summary>\n\n#{body}\n\n</details>"
+      incomplete = body.to_s.match?(INCOMPLETE_TRAILER_LINE)
+      body = body.to_s.gsub(HIDDEN_TRAILERS, '').strip
+      summary = "#{INCOMPLETE_MARK if incomplete}#{summary_html(subject)}"
+      "<details>\n<summary>#{summary}</summary>\n\n#{body}\n\n</details>"
     end
     notes = []
     notes << "Rebasing onto `#{base_branch}` conflicted, so the branch was rebuilt from it." if rebuilt
-    if failed
-      notes << "Stopped at #{commit_ref(failed)}, which needs to be finished by hand; later jsonata-js commits " \
-               'are synced once this PR is marked ready for review.'
+    if failure&.fetch(:committed)
+      notes << "Stopped at #{commit_ref(failure[:commit])}, which needs to be finished by hand (remove the " \
+               "`#{INCOMPLETE_TRAILER}` trailer when amending it); later jsonata-js commits are synced once this " \
+               'PR is marked ready for review.'
+    elsif failure
+      notes << "Stopped before #{commit_ref(failure[:commit])}, as Claude failed to run " \
+               "(#{failure[:api_error]}); the next run retries it."
     end
     failing = checks.reject { |_, passed| passed }.keys
     notes << "Failing on the branch: #{failing.join(', ')}." if failing.any?
