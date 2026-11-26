@@ -12,8 +12,8 @@
 module Jsonata
   module Functions
     # Sum function
-    # @param args - Arguments
-    # @returns Total value of arguments
+    # @param args [Object] Arguments
+    # @return [Numeric] Total value of arguments
     def sum(args)
       # undefined inputs always return undefined
       return nil if args.nil?
@@ -26,8 +26,8 @@ module Jsonata
     end
 
     # Count function
-    # @param args - Arguments
-    # @returns Number of elements in the array
+    # @param args [Object] Arguments
+    # @return [Numeric] Number of elements in the array
     def count(args)
       # undefined inputs always return undefined
       return 0 if args.nil?
@@ -36,8 +36,8 @@ module Jsonata
     end
 
     # Max function
-    # @param args - Arguments
-    # @returns Max element in the array
+    # @param args [Object] Arguments
+    # @return [Numeric] Max element in the array
     def max(args)
       # undefined inputs always return undefined
       return nil if args.nil? || args.empty?
@@ -46,8 +46,8 @@ module Jsonata
     end
 
     # Min function
-    # @param args - Arguments
-    # @returns Min element in the array
+    # @param args [Object] Arguments
+    # @return [Numeric] Min element in the array
     def min(args)
       # undefined inputs always return undefined
       return nil if args.nil? || args.empty?
@@ -56,8 +56,8 @@ module Jsonata
     end
 
     # Average function
-    # @param args - Arguments
-    # @returns Average element in the array
+    # @param args [Object] Arguments
+    # @return [Numeric] Average element in the array
     def average(args)
       # undefined inputs always return undefined
       return nil if args.nil? || args.empty?
@@ -70,9 +70,9 @@ module Jsonata
     end
 
     # Stringify arguments
-    # @param arg - Arguments
-    # @param prettify - Pretty print the result
-    # @returns String from arguments
+    # @param arg [Object] Arguments
+    # @param prettify [Boolean] Pretty print the result
+    # @return [String] String from arguments
     def string(arg, prettify = false)
       # undefined inputs always return undefined
       return nil if arg.nil?
@@ -99,10 +99,10 @@ module Jsonata
     end
 
     # Create substring based on character number and length
-    # @param str - String to evaluate
-    # @param start - Character number to start substring
-    # @param length - Number of characters in substring
-    # @returns Substring
+    # @param str [String] String to evaluate
+    # @param start [Integer] Character number to start substring
+    # @param length [Integer] Number of characters in substring
+    # @return [String, Object] Substring
     def substring(str, start, length)
       # undefined inputs always return undefined
       return nil if str.nil?
@@ -123,9 +123,9 @@ module Jsonata
     end
 
     # Create substring up until a character
-    # @param str - String to evaluate
-    # @param chars - Character to define substring boundary
-    # @returns Substring
+    # @param str [String] String to evaluate
+    # @param chars [String] Character to define substring boundary
+    # @return [Object] Substring
     def substring_before(str, chars)
       # undefined inputs always return undefined
       return nil if str.nil?
@@ -139,9 +139,9 @@ module Jsonata
     end
 
     # Create substring after a character
-    # @param str - String to evaluate
-    # @param chars - Character to define substring boundary
-    # @returns Substring
+    # @param str [String] String to evaluate
+    # @param chars [String] Character to define substring boundary
+    # @return [Object] Substring
     def substring_after(str, chars)
       # undefined inputs always return undefined
       return nil if str.nil?
@@ -155,8 +155,8 @@ module Jsonata
     end
 
     # Lowercase a string
-    # @param str - String to evaluate
-    # @returns Lowercase string
+    # @param str [String] String to evaluate
+    # @return [String] Lowercase string
     def lowercase(str)
       # undefined inputs always return undefined
       return nil if str.nil?
@@ -165,8 +165,8 @@ module Jsonata
     end
 
     # Uppercase a string
-    # @param str - String to evaluate
-    # @returns Uppercase string
+    # @param str [String] String to evaluate
+    # @return [String] Uppercase string
     def uppercase(str)
       # undefined inputs always return undefined
       return nil if str.nil?
@@ -175,8 +175,8 @@ module Jsonata
     end
 
     # length of a string
-    # @param str - string
-    # @returns The number of characters in the string
+    # @param str [String] string
+    # @return [Numeric] The number of characters in the string
     def length(str)
       # undefined inputs always return undefined
       return nil if str.nil?
@@ -185,8 +185,8 @@ module Jsonata
     end
 
     # Normalize and trim whitespace within a string
-    # @param str - string to be trimmed
-    # @returns trimmed string
+    # @param str [String] string to be trimmed
+    # @return [String] trimmed string
     def trim(str)
       # undefined inputs always return undefined
       return nil if str.nil?
@@ -205,10 +205,10 @@ module Jsonata
     end
 
     # Pad a string to a minimum width by adding characters to the start or end
-    # @param str - string to be padded
-    # @param width - the minimum width; +ve pads to the right, -ve pads to the left
-    # @param char - the pad character(s); defaults to ' '
-    # @returns padded string
+    # @param str [String] string to be padded
+    # @param width [Numeric] the minimum width; +ve pads to the right, -ve pads to the left
+    # @param char [String] the pad character(s); defaults to ' '
+    # @return [String] padded string
     def pad(str, width, char)
       # undefined inputs always return undefined
       return nil if str.nil?
@@ -237,9 +237,9 @@ module Jsonata
 
     # Evaluate the matcher function against the str arg
     #
-    # @param matcher - matching function (native or lambda)
-    # @param str - the string to match against
-    # @returns structure that represents the match(es)
+    # @param matcher [Object] matching function (native or lambda)
+    # @param str [String] the string to match against
+    # @return [Object] structure that represents the match(es)
     def evaluate_matcher(matcher, str = nil)
       result = call_function(matcher, [str])
       if Utils.truthy?(result) && !(result.kind_of?(Hash) && (result['start'].kind_of?(Numeric) || result['end'] == 'number' ||
@@ -252,9 +252,9 @@ module Jsonata
     end
 
     # Tests if the str contains the token
-    # @param str - string to test
-    # @param token - substring or regex to find
-    # @returns true if str contains token
+    # @param str [String] string to test
+    # @param token [String] substring or regex to find
+    # @return [Boolean] true if str contains token
     def contains(str, token)
       # undefined inputs always return undefined
       return nil if str.nil? || token.nil?
@@ -268,10 +268,10 @@ module Jsonata
     end
 
     # Match a string with a regex returning an array of object containing details of each match
-    # @param str - string
-    # @param regex - the regex applied to the string
-    # @param limit - max number of matches to return
-    # @returns The array of match objects
+    # @param str [String] string
+    # @param regex [String] the regex applied to the string
+    # @param limit [Integer] max number of matches to return
+    # @return [Array] The array of match objects
     def match(str, regex, limit)
       # undefined inputs always return undefined
       return nil if str.nil?
@@ -301,11 +301,11 @@ module Jsonata
     end
 
     # Match a string with a regex returning an array of object containing details of each match
-    # @param str - string
-    # @param pattern - the substring/regex applied to the string
-    # @param replacement - text to replace the matched substrings
-    # @param limit - max number of matches to return
-    # @returns The array of match objects
+    # @param str [String] string
+    # @param pattern [String] the substring/regex applied to the string
+    # @param replacement [String] text to replace the matched substrings
+    # @param limit [Integer] max number of matches to return
+    # @return [Array] The array of match objects
     def replace(str, pattern, replacement, limit)
       # undefined inputs always return undefined
       return nil if str.nil? || pattern.nil?
@@ -412,8 +412,8 @@ module Jsonata
     end
 
     # Base64 encode a string
-    # @param str - string
-    # @returns Base 64 encoding of the binary data
+    # @param str [String] string
+    # @return [String] Base 64 encoding of the binary data
     def base64encode(str)
       # undefined inputs always return undefined
       return nil if str.nil?
@@ -424,8 +424,8 @@ module Jsonata
     end
 
     # Base64 decode a string
-    # @param str - string
-    # @returns Base 64 encoding of the binary data
+    # @param str [String] string
+    # @return [String] Base 64 encoding of the binary data
     def base64decode(str)
       # undefined inputs always return undefined
       return nil if str.nil?
@@ -435,8 +435,8 @@ module Jsonata
     end
 
     # Encode a string into a component for a url
-    # @param str - String to encode
-    # @returns Encoded string
+    # @param str [String] String to encode
+    # @return [String] Encoded string
     def encode_url_component(str)
       # undefined inputs always return undefined
       return nil if str.nil?
@@ -448,8 +448,8 @@ module Jsonata
     end
 
     # Encode a string into a url
-    # @param str - String to encode
-    # @returns Encoded string
+    # @param str [String] String to encode
+    # @return [String] Encoded string
     def encode_url(str)
       # undefined inputs always return undefined
       return nil if str.nil?
@@ -461,8 +461,8 @@ module Jsonata
     end
 
     # Decode a string from a component for a url
-    # @param str - String to decode
-    # @returns Decoded string
+    # @param str [String] String to decode
+    # @return [String] Decoded string
     def decode_url_component(str)
       # undefined inputs always return undefined
       return nil if str.nil?
@@ -474,8 +474,8 @@ module Jsonata
     end
 
     # Decode a string from a url
-    # @param str - String to decode
-    # @returns Decoded string
+    # @param str [String] String to decode
+    # @return [String] Decoded string
     def decode_url(str)
       # undefined inputs always return undefined
       return nil if str.nil?
@@ -487,10 +487,10 @@ module Jsonata
     end
 
     # Split a string into an array of substrings
-    # @param str - string
-    # @param separator - the token or regex that splits the string
-    # @param limit - max number of substrings
-    # @returns The array of string
+    # @param str [String] string
+    # @param separator [String] the token or regex that splits the string
+    # @param limit [Integer] max number of substrings
+    # @return [Array] The array of string
     def split(str, separator, limit)
       # undefined inputs always return undefined
       return nil if str.nil? || separator.nil?
@@ -525,9 +525,9 @@ module Jsonata
     end
 
     # Join an array of strings
-    # @param strs - array of string
-    # @param separator - the token that splits the string
-    # @returns The concatenated string
+    # @param strs [Array] array of string
+    # @param separator [String] the token that splits the string
+    # @return [String] The concatenated string
     def join(strs, separator)
       # undefined inputs always return undefined
       return nil if strs.nil?
@@ -539,10 +539,10 @@ module Jsonata
     end
 
     # Formats a number into a decimal string representation using XPath 3.1 F&O fn:format-number spec
-    # @param value - number to format
-    # @param picture - picture string definition
-    # @param options - override locale defaults
-    # @returns The formatted string
+    # @param value [Numeric] number to format
+    # @param picture [String] picture string definition
+    # @param options [Object] override locale defaults
+    # @return [String] The formatted string
     def format_number(value, picture, options)
       # undefined inputs always return undefined
       return nil if value.nil?
@@ -876,9 +876,9 @@ module Jsonata
     end
 
     # Converts a number to a string using a specified number base
-    # @param value - the number to convert
-    # @param radix - the number base; must be between 2 and 36. Defaults to 10
-    # @returns the converted string
+    # @param value [Numeric] the number to convert
+    # @param radix [Numeric] the number base; must be between 2 and 36. Defaults to 10
+    # @return [String] the converted string
     def format_base(value, radix)
       # undefined inputs always return undefined
       return nil if value.nil?
@@ -897,8 +897,8 @@ module Jsonata
     end
 
     # Cast argument to number
-    # @param arg - Argument
-    # @returns numeric value of argument
+    # @param arg [Object] Argument
+    # @return [Numeric] numeric value of argument
     def number(arg)
       # undefined inputs always return undefined
       return nil if arg.nil?
@@ -922,8 +922,8 @@ module Jsonata
     end
 
     # Absolute value of a number
-    # @param arg - Argument
-    # @returns absolute value of argument
+    # @param arg [Numeric] Argument
+    # @return [Numeric] absolute value of argument
     def abs(arg)
       # undefined inputs always return undefined
       return nil if arg.nil?
@@ -932,8 +932,8 @@ module Jsonata
     end
 
     # Rounds a number down to integer
-    # @param arg - Argument
-    # @returns rounded integer
+    # @param arg [Numeric] Argument
+    # @return [Numeric] rounded integer
     def floor(arg)
       # undefined inputs always return undefined
       return nil if arg.nil?
@@ -942,8 +942,8 @@ module Jsonata
     end
 
     # Rounds a number up to integer
-    # @param arg - Argument
-    # @returns rounded integer
+    # @param arg [Numeric] Argument
+    # @return [Numeric] rounded integer
     def ceil(arg)
       # undefined inputs always return undefined
       return nil if arg.nil?
@@ -952,9 +952,9 @@ module Jsonata
     end
 
     # Round to half even
-    # @param arg - Argument
-    # @param precision - number of decimal places
-    # @returns rounded integer
+    # @param arg [Numeric] Argument
+    # @param precision [Numeric] number of decimal places
+    # @return [Numeric] rounded integer
     def round(arg, precision = nil)
       # undefined inputs always return undefined
       return nil if arg.nil?
@@ -986,8 +986,8 @@ module Jsonata
     end
 
     # Square root of number
-    # @param arg - Argument
-    # @returns square root
+    # @param arg [Numeric] Argument
+    # @return [Numeric] square root
     def sqrt(arg)
       # undefined inputs always return undefined
       return nil if arg.nil?
@@ -998,9 +998,9 @@ module Jsonata
     end
 
     # Raises number to the power of the second number
-    # @param arg - the base
-    # @param exp - the exponent
-    # @returns rounded integer
+    # @param arg [Numeric] the base
+    # @param exp [Numeric] the exponent
+    # @return [Numeric] rounded integer
     def power(arg, exp)
       # undefined inputs always return undefined
       return nil if arg.nil?
@@ -1017,14 +1017,14 @@ module Jsonata
     end
 
     # Returns a random number 0 <= n < 1
-    # @returns random number
+    # @return [Numeric] random number
     def random
       Kernel.rand
     end
 
     # Evaluate an input and return a boolean
-    # @param arg - Arguments
-    # @returns Boolean
+    # @param arg [Object] Arguments
+    # @return [Boolean] Boolean
     def boolean(arg)
       # cast arg to its effective boolean value
       # boolean: unchanged
@@ -1059,8 +1059,8 @@ module Jsonata
     end
 
     # returns the Boolean NOT of the arg
-    # @param arg - argument
-    # @returns NOT arg
+    # @param arg [Object] argument
+    # @return [Boolean] NOT arg
     def not(arg)
       # undefined inputs always return undefined
       return nil if arg.nil?
@@ -1070,11 +1070,11 @@ module Jsonata
 
     # Helper function to build the arguments to be supplied to the function arg of the
     # HOFs map, filter, each, sift and single
-    # @param func - the function to be invoked
-    # @param arg1 - the first (required) arg - the value
-    # @param arg2 - the second (optional) arg - the position (index or key)
-    # @param arg3 - the third (optional) arg - the whole structure (array or object)
-    # @returns the argument list
+    # @param func [Lambda, NativeFunction, Proc] the function to be invoked
+    # @param arg1 [Object] the first (required) arg - the value
+    # @param arg2 [Object] the second (optional) arg - the position (index or key)
+    # @param arg3 [Object] the third (optional) arg - the whole structure (array or object)
+    # @return [Array] the argument list
     def hof_func_args(func, arg1, arg2, arg3)
       func_args = [arg1] # the first arg (the value) is required
       # the other two are optional - only supply it if the function can take it
@@ -1085,9 +1085,9 @@ module Jsonata
     end
 
     # Create a map from an array of arguments
-    # @param arr - array to map over
-    # @param func - function to apply
-    # @returns Map array
+    # @param arr [Array] array to map over
+    # @param func [Lambda, NativeFunction, Proc] function to apply
+    # @return [Array] Map array
     def map(arr, func)
       # undefined inputs always return undefined
       return nil if arr.nil?
@@ -1105,9 +1105,9 @@ module Jsonata
     end
 
     # Create a map from an array of arguments
-    # @param arr - array to filter
-    # @param func - predicate function
-    # @returns Map array
+    # @param arr [Array] array to filter
+    # @param func [Lambda, NativeFunction, Proc] predicate function
+    # @return [Array] Map array
     def filter(arr, func)
       # undefined inputs always return undefined
       return nil if arr.nil?
@@ -1126,9 +1126,9 @@ module Jsonata
 
     # Given an array, find the single element matching a specified condition
     # Throws an exception if the number of matching elements is not exactly one
-    # @param arr - array to filter
-    # @param func - predicate function
-    # @returns Matching element
+    # @param arr [Array] array to filter
+    # @param func [Lambda, NativeFunction, Proc] predicate function
+    # @return [Object] Matching element
     def single(arr, func)
       # undefined inputs always return undefined
       return nil if arr.nil?
@@ -1158,8 +1158,8 @@ module Jsonata
     end
 
     # Convolves (zips) each value from a set of arrays
-    # @param args - arrays to zip
-    # @returns Zipped array
+    # @param args [Array] arrays to zip
+    # @return [Array] Zipped array
     def zip(*args)
       # this can take a variable number of arguments
       result = []
@@ -1173,10 +1173,10 @@ module Jsonata
     end
 
     # Fold left function
-    # @param sequence - Sequence
-    # @param func - Function
-    # @param init - Initial value
-    # @returns Result
+    # @param sequence [Array] Sequence
+    # @param func [Lambda, NativeFunction, Proc] Function
+    # @param init [Object] Initial value
+    # @return [Object] Result
     def fold_left(sequence, func, init)
       # undefined inputs always return undefined
       return nil if sequence.nil?
@@ -1204,8 +1204,8 @@ module Jsonata
     end
 
     # Return keys for an object
-    # @param arg - Object
-    # @returns Array of keys
+    # @param arg [Object] Object
+    # @return [Array] Array of keys
     def keys(arg)
       result = create_sequence
 
@@ -1225,9 +1225,9 @@ module Jsonata
     end
 
     # Return value from an object for a given key
-    # @param input - Object/Array
-    # @param key - Key in object
-    # @returns Value of key in object
+    # @param input [Object] Object/Array
+    # @param key [String] Key in object
+    # @return [Object] Value of key in object
     def lookup(input, key)
       # lookup the 'name' item in the input
       result = nil
@@ -1250,9 +1250,9 @@ module Jsonata
     end
 
     # Append second argument to first
-    # @param arg1 - First argument
-    # @param arg2 - Second argument
-    # @returns Appended arguments
+    # @param arg1 [Array, Object] First argument
+    # @param arg2 [Array, Object] Second argument
+    # @return [Object] Appended arguments
     def append(arg1, arg2)
       # disregard undefined args
       return arg2 if arg1.nil?
@@ -1268,15 +1268,15 @@ module Jsonata
     end
 
     # Determines if the argument is undefined
-    # @param arg - argument
-    # @returns False if argument undefined, otherwise true
+    # @param arg [Object] argument
+    # @return [Boolean] False if argument undefined, otherwise true
     def exists(arg)
       !arg.nil?
     end
 
     # Splits an object into an array of object with one property each
-    # @param arg - the object to split
-    # @returns the array
+    # @param arg [Object] the object to split
+    # @return [Object] the array
     def spread(arg)
       result = create_sequence
 
@@ -1297,8 +1297,8 @@ module Jsonata
 
     # Merges an array of objects into a single object.  Duplicate properties are
     # overridden by entries later in the array
-    # @param arg - the objects to merge
-    # @returns the object
+    # @param arg [Object] the objects to merge
+    # @return [Object] the object
     def merge(arg)
       # undefined inputs always return undefined
       return nil if arg.nil?
@@ -1314,8 +1314,8 @@ module Jsonata
     end
 
     # Reverses the order of items in an array
-    # @param arr - the array to reverse
-    # @returns the reversed array
+    # @param arr [Array] the array to reverse
+    # @return [Array] the reversed array
     def reverse(arr)
       # undefined inputs always return undefined
       return nil if arr.nil?
@@ -1325,9 +1325,9 @@ module Jsonata
       Array.new(arr).reverse
     end
 
-    # @param obj - the input object to iterate over
-    # @param func - the function to apply to each key/value pair
-    # @returns the resultant array
+    # @param obj [Object] the input object to iterate over
+    # @param func [Object] the function to apply to each key/value pair
+    # @return [Array] the resultant array
     def each(obj, func)
       result = create_sequence
 
@@ -1341,16 +1341,16 @@ module Jsonata
       result
     end
 
-    # @param message - the message to attach to the error
-    # @throws custom error with code 'D3137'
+    # @param message [String] the message to attach to the error
+    # @raise [Jsonata::Error] custom error with code 'D3137'
     def error(message)
       raise Jsonata::Error.new('D3137', :message => Utils.truthy?(message) ? message : '$error() function evaluated')
     end
 
-    # @param condition - the condition to evaluate
-    # @param message - the message to attach to the error
-    # @throws custom error with code 'D3137'
-    # @returns undefined
+    # @param condition [Boolean] the condition to evaluate
+    # @param message [String] the message to attach to the error
+    # @raise [Jsonata::Error] custom error with code 'D3137'
+    # @return [nil] undefined
     def assert(condition, message)
       unless condition
         raise Jsonata::Error.new('D3141', :message => Utils.truthy?(message) ? message : '$assert() statement failed')
@@ -1359,8 +1359,8 @@ module Jsonata
       nil
     end
 
-    # @param value - the input to which the type will be checked
-    # @returns the type of the input
+    # @param value [Object] the input to which the type will be checked
+    # @return [String] the type of the input
     def type(value)
       return nil if value.nil?
       return 'null' if value == NULL
@@ -1375,9 +1375,9 @@ module Jsonata
 
     # Implements the merge sort (stable) with optional comparator function
     #
-    # @param arr - the array to sort
-    # @param comparator - comparator function
-    # @returns sorted array
+    # @param arr [Array] the array to sort
+    # @param comparator [Object] comparator function
+    # @return [Array] sorted array
     def sort(arr, comparator)
       # undefined inputs always return undefined
       return nil if arr.nil?
@@ -1441,8 +1441,8 @@ module Jsonata
     end
 
     # Randomly shuffles the contents of an array
-    # @param arr - the input array
-    # @returns the shuffled array
+    # @param arr [Array] the input array
+    # @return [Array] the shuffled array
     def shuffle(arr)
       # undefined inputs always return undefined
       return nil if arr.nil?
@@ -1461,8 +1461,8 @@ module Jsonata
     end
 
     # Returns the values that appear in a sequence, with duplicates eliminated.
-    # @param arr - An array or sequence of values
-    # @returns sequence of distinct values
+    # @param arr [Array] An array or sequence of values
+    # @return [Array] sequence of distinct values
     def distinct(arr)
       # undefined inputs always return undefined
       return nil if arr.nil?
@@ -1482,9 +1482,9 @@ module Jsonata
     # Applies a predicate function to each key/value pair in an object, and returns an object containing
     # only the key/value pairs that passed the predicate
     #
-    # @param arg - the object to be sifted
-    # @param func - the predicate function (lambda or native)
-    # @returns sifted object
+    # @param arg [Object] the object to be sifted
+    # @param func [Object] the predicate function (lambda or native)
+    # @return [Object] sifted object
     def sift(arg, func)
       result = {}
 

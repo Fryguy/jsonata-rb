@@ -21,9 +21,9 @@ module Jsonata
     MAGNITUDES = %w[Thousand Million Billion Trillion].freeze
 
     # converts a number into english words
-    # @param value - the value to format
-    # @param ordinal - ordinal or cardinal form
-    # @returns representation in words
+    # @param value [String] the value to format
+    # @param ordinal [Boolean] ordinal or cardinal form
+    # @return [String] representation in words
     def number_to_words(value, ordinal)
       lookup = nil
       lookup = lambda do |num, prev, ord|
@@ -89,8 +89,8 @@ module Jsonata
     end.freeze
 
     # Converts a number in english words to numeric value
-    # @param text - the number in words
-    # @returns the numeric value
+    # @param text [String] the number in words
+    # @return [Numeric] the numeric value
     def words_to_number(text)
       parts = text.split(/,\s|\sand\s|[\s\\-]/, -1)
       values = parts.map { |part| WORD_VALUES[part] }
@@ -129,8 +129,8 @@ module Jsonata
     ROMAN_VALUES = {'M' => 1000, 'D' => 500, 'C' => 100, 'L' => 50, 'X' => 10, 'V' => 5, 'I' => 1}.freeze
 
     # converts a number to roman numerals
-    # @param value - the number
-    # @returns the number in roman numerals
+    # @param value [Numeric] the number
+    # @return [String] the number in roman numerals
     def decimal_to_roman(value)
       ROMAN_NUMERALS.each do |numeral|
         return numeral[1] + decimal_to_roman(value - numeral[0]) if value >= numeral[0]
@@ -139,8 +139,8 @@ module Jsonata
     end
 
     # converts roman numerals to a number
-    # @param roman - roman number
-    # @returns the numeric value
+    # @param roman [String] roman number
+    # @return [Numeric] the numeric value
     def roman_to_decimal(roman)
       decimal = 0
       max = 1
@@ -158,9 +158,9 @@ module Jsonata
     end
 
     # converts a number to spreadsheet style letters
-    # @param value - the number
-    # @param a_char - the character representing the start of the sequence, e.g. 'A'
-    # @returns the letters
+    # @param value [Numeric] the number
+    # @param a_char [String] the character representing the start of the sequence, e.g. 'A'
+    # @return [String] the letters
     def decimal_to_letters(value, a_char)
       letters = []
       a_code = a_char.ord
@@ -172,9 +172,9 @@ module Jsonata
     end
 
     # converts spreadsheet style letters to a number
-    # @param letters - the letters
-    # @param a_char - the character representing the start of the sequence, e.g. 'A'
-    # @returns the numeric value
+    # @param letters [String] the letters
+    # @param a_char [String] the character representing the start of the sequence, e.g. 'A'
+    # @return [Numeric] the numeric value
     def letters_to_decimal(letters, a_char)
       a_code = a_char.ord
       decimal = 0
@@ -186,9 +186,9 @@ module Jsonata
 
     # Formats an integer as specified by the XPath fn:format-integer function
     # See https://www.w3.org/TR/xpath-functions-31/#func-format-integer
-    # @param value - the number to be formatted
-    # @param picture - the picture string that specifies the format
-    # @returns the formatted number
+    # @param value [Numeric] the number to be formatted
+    # @param picture [String] the picture string that specifies the format
+    # @return [String] the formatted number
     def format_integer(value, picture)
       return nil if value.nil?
 
@@ -213,9 +213,9 @@ module Jsonata
     }.freeze
 
     # formats an integer using a preprocessed representation of the picture string
-    # @param value - the number to be formatted
-    # @param format - the preprocessed representation of the pucture string
-    # @returns the formatted number
+    # @param value [Numeric] the number to be formatted
+    # @param format [Object] the preprocessed representation of the pucture string
+    # @return [String] the formatted number
     def _format_integer(value, format)
       formatted_integer = nil
       negative = value.negative?
@@ -283,8 +283,8 @@ module Jsonata
                       0xFF10].freeze
 
     # preprocesses the picture string
-    # @param picture - picture string
-    # @returns analysed picture
+    # @param picture [String] picture string
+    # @return [Hash] analysed picture
     def analyse_integer_picture(picture)
       format = {
         :type    => 'integer',
@@ -421,8 +421,8 @@ module Jsonata
 
     # Section 9.8.4.1 the format specifier is an array of string literals and variable markers
     # analyse the date-time picture string
-    # @param picture - picture string
-    # @returns the analysed string
+    # @param picture [String] picture string
+    # @return [Hash] the analysed string
     def analyse_date_time_picture(picture)
       spec = []
       format = {
@@ -749,10 +749,10 @@ module Jsonata
     ISO8601_PICTURE = '[Y0001]-[M01]-[D01]T[H01]:[m01]:[s01].[f001][Z01:01t]'
 
     # formats the date/time as specified by the XPath fn:format-dateTime function
-    # @param millis - the timestamp to be formatted, in millis since the epoch
-    # @param picture - the picture string that specifies the format
-    # @param timezone - the timezone to use
-    # @returns the formatted timestamp
+    # @param millis [Numeric] the timestamp to be formatted, in millis since the epoch
+    # @param picture [String] the picture string that specifies the format
+    # @param timezone [String] the timezone to use
+    # @return [String] the formatted timestamp
     def format_date_time(millis, picture, timezone)
       offset_hours = 0
       offset_minutes = 0
@@ -848,8 +848,8 @@ module Jsonata
     end
 
     # Generate a regex to parse integers or timestamps
-    # @param format_spec - object representing the format
-    # @returns regex
+    # @param format_spec [Object] object representing the format
+    # @return [Object] regex
     def generate_regex(format_spec)
       matcher = {}
       if format_spec[:type] == 'datetime'
@@ -988,9 +988,9 @@ module Jsonata
     end
 
     # parse a string containing an integer as specified by the picture string
-    # @param value - the string to parse
-    # @param picture - the picture string
-    # @returns the parsed number
+    # @param value [String] the string to parse
+    # @param picture [String] the picture string
+    # @return [Numeric] the parsed number
     def parse_integer(value, picture)
       return nil if value.nil?
 
@@ -1003,9 +1003,9 @@ module Jsonata
     end
 
     # parse a string containing a timestamp as specified by the picture string
-    # @param timestamp - the string to parse
-    # @param picture - the picture string
-    # @returns the parsed timestamp in millis since the epoch
+    # @param timestamp [String] the string to parse
+    # @param picture [String] the picture string
+    # @return [Numeric] the parsed timestamp in millis since the epoch
     def parse_date_time(timestamp, picture)
       format_spec = analyse_date_time_picture(picture)
       match_spec = generate_regex(format_spec)
@@ -1206,9 +1206,9 @@ module Jsonata
 
     # Converts an ISO 8601 timestamp to milliseconds since the epoch
     #
-    # @param timestamp - the timestamp to be converted
-    # @param picture - the picture string defining the format of the timestamp (defaults to ISO 8601)
-    # @returns milliseconds since the epoch
+    # @param timestamp [String] the timestamp to be converted
+    # @param picture [String] the picture string defining the format of the timestamp (defaults to ISO 8601)
+    # @return [Numeric] milliseconds since the epoch
     def to_millis(timestamp, picture)
       # undefined inputs always return undefined
       return nil if timestamp.nil?
@@ -1223,10 +1223,10 @@ module Jsonata
     end
 
     # Converts milliseconds since the epoch to an ISO 8601 timestamp
-    # @param millis - milliseconds since the epoch to be converted
-    # @param picture - the picture string defining the format of the timestamp (defaults to ISO 8601)
-    # @param timezone - the timezone to format the timestamp in (defaults to UTC)
-    # @returns the formatted timestamp
+    # @param millis [Numeric] milliseconds since the epoch to be converted
+    # @param picture [String] the picture string defining the format of the timestamp (defaults to ISO 8601)
+    # @param timezone [String] the timezone to format the timestamp in (defaults to UTC)
+    # @return [String] the formatted timestamp
     def from_millis(millis, picture, timezone)
       # undefined inputs always return undefined
       return nil if millis.nil?

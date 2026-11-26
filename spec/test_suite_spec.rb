@@ -93,9 +93,9 @@ module TestSuite
   # Protect the process from a runaway expression
   # i.e. Infinite loop (tail recursion), or excessive stack growth
   #
-  # @param expr - expression to protect
-  # @param timeout - max time in ms
-  # @param max_depth - max stack depth
+  # @param expr [Object] expression to protect
+  # @param timeout [Numeric] max time in ms
+  # @param max_depth [Numeric] max stack depth
   def timebox_expression(expr, timeout, max_depth)
     depth = 0
     time = Process.clock_gettime(Process::CLOCK_MONOTONIC, :millisecond)
