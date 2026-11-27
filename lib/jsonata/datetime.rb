@@ -777,8 +777,8 @@ module Jsonata
         # parse the hour and minute offsets
         # assume for now the format supplied is +hhmm
         offset = Utils.parse_int(timezone) || 0
-        offset_hours = (offset / 100.0).floor
         offset_minutes = offset.remainder(100)
+        offset_hours = (offset - offset_minutes) / 100
       end
 
       format_component = lambda do |date, marker_spec|
@@ -852,19 +852,19 @@ module Jsonata
           # Section 9.8.4.6 Formatting timezones
           offset = (offset_hours * 100) + offset_minutes
           if marker_spec[:integer_format][:regular]
-            component_value = _format_integer(offset, marker_spec[:integer_format])
+            component_value = _format_integer(offset.abs, marker_spec[:integer_format])
           else
             num_digits = marker_spec[:integer_format][:mandatory_digits]
             if [1, 2].include?(num_digits)
-              component_value = _format_integer(offset_hours, marker_spec[:integer_format])
-              component_value += ":#{format_integer(offset_minutes, '00')}" if offset_minutes != 0
+              component_value = _format_integer(offset_hours.abs, marker_spec[:integer_format])
+              component_value += ":#{format_integer(offset_minutes.abs, '00')}" if offset_minutes != 0
             elsif [3, 4].include?(num_digits)
-              component_value = _format_integer(offset, marker_spec[:integer_format])
+              component_value = _format_integer(offset.abs, marker_spec[:integer_format])
             else
               raise Jsonata::Error.new('D3134', :value => num_digits)
             end
           end
-          component_value = "+#{component_value}" if offset >= 0
+          component_value = (offset.negative? ? '-' : '+') + component_value
           component_value = "GMT#{component_value}" if marker_spec[:component] == 'z'
           component_value = 'Z' if offset.zero? && marker_spec[:presentation2] == 't'
         elsif marker_spec[:component] == 'P'
@@ -916,26 +916,34 @@ module Jsonata
             res[:regex] = +''
             res[:regex] << 'GMT' if part[:component] == 'z'
             res[:regex] << '[-+][0-9]+'
-            res[:regex] << "#{separator[:character]}[0-9]+" if separator
+            if separator
+              res[:regex] << "#{separator[:character]}[0-9]+"
+            elsif part[:integer_format][:mandatory_digits] <= 2
+              res[:regex] << '(?::[0-9]{2})?'
+            end
             res[:parse] = lambda do |value|
               value = value[3..] if part[:component] == 'z' # remove the leading GMT
+              # The sign applies to both components, including offsets such as -00:30.
+              sign = value[0] == '-' ? -1 : 1
+              value = value[1..]
               offset_hours = 0
               offset_minutes = 0
-              if separator
-                offset_hours = Utils.parse_int(value[0, value.index(separator[:character])])
-                offset_minutes = Utils.parse_int(value[(value.index(separator[:character]) + 1)..])
+              separator_pos = value.index(separator ? separator[:character] : ':')
+              if separator_pos
+                offset_hours = Utils.parse_int(value[0, separator_pos])
+                offset_minutes = Utils.parse_int(value[(separator_pos + 1)..])
               else
                 # depends on number of digits
-                numdigits = value.length - 1
+                numdigits = value.length
                 if numdigits <= 2
                   # just hour offset
                   offset_hours = Utils.parse_int(value)
                 else
-                  offset_hours = Utils.parse_int(value[0, 3])
-                  offset_minutes = Utils.parse_int(value[3..])
+                  offset_hours = Utils.parse_int(value[0, numdigits - 2])
+                  offset_minutes = Utils.parse_int(value[(numdigits - 2)..])
                 end
               end
-              (offset_hours * 60) + offset_minutes
+              sign * ((offset_hours * 60) + offset_minutes)
             end
           elsif part[:component] == 'f'
             res[:regex] = '[0-9]+'
