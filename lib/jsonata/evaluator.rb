@@ -170,6 +170,8 @@ module Jsonata
                  environment.lookup(expr[:slot][:label])
                when 'condition'
                  evaluate_condition(expr, input, environment)
+               when 'template'
+                 evaluate_template(expr, input, environment)
                when 'block'
                  evaluate_block(expr, input, environment)
                when 'bind'
@@ -716,12 +718,40 @@ module Jsonata
 
     # Evaluate string concatenation against input data
     def evaluate_string_concat(lhs, rhs)
-      lstr = ''
-      rstr = ''
-      lstr = FN.string(lhs) unless lhs.nil?
-      rstr = FN.string(rhs) unless rhs.nil?
+      cast_string(lhs) + cast_string(rhs)
+    end
 
-      lstr + rstr
+    # Cast a value to string for concatenation, as done by the & operator and template strings
+    # @param value [Object] value to cast
+    # @return [String] the empty string if value is undefined, otherwise the result of $string(value)
+    def cast_string(value)
+      value.nil? ? '' : FN.string(value)
+    end
+
+    # Evaluate template string against input data
+    # Literal text is appended as is; each embedded expression is evaluated and cast like the & operator
+    # @param expr [Hash] JSONata expression
+    # @param input [Object] Input data to evaluate against
+    # @param environment [Frame] Environment
+    # @return [String] Evaluated template
+    def evaluate_template(expr, input, environment)
+      result = +''
+      expr[:parts].each do |part|
+        if part.kind_of?(String)
+          result << part
+          next
+        end
+        value = evaluate(part[:expression], input, environment)
+        begin
+          result << cast_string(value)
+        rescue Jsonata::Error => e
+          # point at the embedded expression whose value could not be cast
+          e.position = part[:position]
+          e.token = '{'
+          raise e
+        end
+      end
+      result
     end
 
     # Evaluate group expression against input data
@@ -1369,6 +1399,8 @@ module Jsonata
       'S0104' => 'The escape sequence \\u must be followed by 4 hex digits',
       'S0105' => 'Quoted property name must be terminated with a backquote (`)',
       'S0106' => 'Comment has no closing tag',
+      'S0107' => 'Template string must be terminated with {{value}}',
+      'S0108' => 'A } in template string text must be escaped as \\}',
       'S0201' => 'Syntax error: {{token}}',
       'S0202' => 'Expected {{value}}, got {{token}}',
       'S0203' => 'Expected {{value}} before end of expression',

@@ -599,7 +599,13 @@ module Jsonata
     end
 
     # Equivalent of new Date(millis)
+    # (Ruby specific) Returns nil for an Invalid Date, i.e. when millis is NaN or beyond the JS time range of
+    # +/-8.64e15 ms; the date getters of an Invalid Date return NaN (see get_date_time_fragment).
+    # @param millis [Numeric] millis since the epoch
+    # @return [Time, nil] the UTC date, or nil for an Invalid Date
     def self.new_date(millis)
+      return nil if (millis.kind_of?(Float) && millis.nan?) || millis.abs > 8.64e15
+
       Time.at(Rational(millis.truncate, 1000), :in => 'UTC')
     end
 
@@ -641,6 +647,16 @@ module Jsonata
     end
 
     def get_date_time_fragment(date, component)
+      # (Ruby specific) the getters of an Invalid Date return NaN, from which every numeric component is NaN
+      if date.nil?
+        return case component
+               when 'P' then 'am' # NaN >= 12 is false
+               when 'C', 'E' then 'ISO'
+               when 'Z', 'z' then nil
+               else Float::NAN
+               end
+      end
+
       component_value = nil
       case component
       when 'Y' # year
@@ -761,8 +777,8 @@ module Jsonata
         # parse the hour and minute offsets
         # assume for now the format supplied is +hhmm
         offset = Utils.parse_int(timezone) || 0
-        offset_hours = (offset / 100.0).floor
         offset_minutes = offset.remainder(100)
+        offset_hours = (offset - offset_minutes) / 100
       end
 
       format_component = lambda do |date, marker_spec|
@@ -795,25 +811,60 @@ module Jsonata
             component_value = _format_integer(component_value, marker_spec[:integer_format])
           end
         elsif marker_spec[:component] == 'f'
-          # TODO Section 9.8.4.5 Formatting Fractional Seconds
-          component_value = _format_integer(component_value, marker_spec[:integer_format])
+          # Section 9.8.4.5 Formatting Fractional Seconds
+          if marker_spec[:integer_format][:primary] != FORMATS[:DECIMAL] ||
+             (component_value.kind_of?(Float) && component_value.nan?)
+            component_value = _format_integer(component_value, marker_spec[:integer_format])
+          else
+            picture = Utils.string_to_array(marker_spec[:presentation1])
+            # Append an empty modifier so semicolons in the primary token remain grouping signs.
+            format = analyse_integer_picture("#{marker_spec[:presentation1]};")
+            min_digits = format[:mandatory_digits]
+            max_digits = min_digits + format[:optional_digits]
+            if marker_spec[:width]
+              min_digits = [min_digits, marker_spec[:width][:min]].max unless marker_spec[:width][:min].nil?
+              max_digits = [max_digits, min_digits].max
+              max_digits = [max_digits, marker_spec[:width][:max]].max unless marker_spec[:width][:max].nil?
+            elsif picture.length == 1
+              max_digits = 3 # a single digit allows the full millisecond precision
+            end
+
+            fraction = "00#{component_value}"[-3..].sub(/0+\z/, '')
+            fraction += '0' * (min_digits - fraction.length) if fraction.length < min_digits
+            # Pad and truncate on the right, without rounding into the next second.
+            digits = fraction[0, max_digits].each_char.map do |digit|
+              (format[:zero_code] + digit.to_i).chr(Encoding::UTF_8)
+            end
+            # Count grouping positions from the left. The output cannot exceed the
+            # adjusted picture's width, so separators never need to be extrapolated.
+            position = 0
+            picture.each do |character|
+              code = character.ord
+              if character == '#' || code.between?(format[:zero_code], format[:zero_code] + 9)
+                position += 1
+              elsif position < digits.length
+                digits[position] = character + digits[position]
+              end
+            end
+            component_value = digits.join
+          end
         elsif marker_spec[:component] == 'Z' || marker_spec[:component] == 'z'
           # Section 9.8.4.6 Formatting timezones
           offset = (offset_hours * 100) + offset_minutes
           if marker_spec[:integer_format][:regular]
-            component_value = _format_integer(offset, marker_spec[:integer_format])
+            component_value = _format_integer(offset.abs, marker_spec[:integer_format])
           else
             num_digits = marker_spec[:integer_format][:mandatory_digits]
             if [1, 2].include?(num_digits)
-              component_value = _format_integer(offset_hours, marker_spec[:integer_format])
-              component_value += ":#{format_integer(offset_minutes, '00')}" if offset_minutes != 0
+              component_value = _format_integer(offset_hours.abs, marker_spec[:integer_format])
+              component_value += ":#{format_integer(offset_minutes.abs, '00')}" if offset_minutes != 0
             elsif [3, 4].include?(num_digits)
-              component_value = _format_integer(offset, marker_spec[:integer_format])
+              component_value = _format_integer(offset.abs, marker_spec[:integer_format])
             else
               raise Jsonata::Error.new('D3134', :value => num_digits)
             end
           end
-          component_value = "+#{component_value}" if offset >= 0
+          component_value = (offset.negative? ? '-' : '+') + component_value
           component_value = "GMT#{component_value}" if marker_spec[:component] == 'z'
           component_value = 'Z' if offset.zero? && marker_spec[:presentation2] == 't'
         elsif marker_spec[:component] == 'P'
@@ -865,26 +916,34 @@ module Jsonata
             res[:regex] = +''
             res[:regex] << 'GMT' if part[:component] == 'z'
             res[:regex] << '[-+][0-9]+'
-            res[:regex] << "#{separator[:character]}[0-9]+" if separator
+            if separator
+              res[:regex] << "#{separator[:character]}[0-9]+"
+            elsif part[:integer_format][:mandatory_digits] <= 2
+              res[:regex] << '(?::[0-9]{2})?'
+            end
             res[:parse] = lambda do |value|
               value = value[3..] if part[:component] == 'z' # remove the leading GMT
+              # The sign applies to both components, including offsets such as -00:30.
+              sign = value[0] == '-' ? -1 : 1
+              value = value[1..]
               offset_hours = 0
               offset_minutes = 0
-              if separator
-                offset_hours = Utils.parse_int(value[0, value.index(separator[:character])])
-                offset_minutes = Utils.parse_int(value[(value.index(separator[:character]) + 1)..])
+              separator_pos = value.index(separator ? separator[:character] : ':')
+              if separator_pos
+                offset_hours = Utils.parse_int(value[0, separator_pos])
+                offset_minutes = Utils.parse_int(value[(separator_pos + 1)..])
               else
                 # depends on number of digits
-                numdigits = value.length - 1
+                numdigits = value.length
                 if numdigits <= 2
                   # just hour offset
                   offset_hours = Utils.parse_int(value)
                 else
-                  offset_hours = Utils.parse_int(value[0, 3])
-                  offset_minutes = Utils.parse_int(value[3..])
+                  offset_hours = Utils.parse_int(value[0, numdigits - 2])
+                  offset_minutes = Utils.parse_int(value[(numdigits - 2)..])
                 end
               end
-              (offset_hours * 60) + offset_minutes
+              sign * ((offset_hours * 60) + offset_minutes)
             end
           elsif part[:component] == 'f'
             res[:regex] = '[0-9]+'
