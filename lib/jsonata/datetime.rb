@@ -599,7 +599,13 @@ module Jsonata
     end
 
     # Equivalent of new Date(millis)
+    # (Ruby specific) Returns nil for an Invalid Date, i.e. when millis is NaN or beyond the JS time range of
+    # +/-8.64e15 ms; the date getters of an Invalid Date return NaN (see get_date_time_fragment).
+    # @param millis [Numeric] millis since the epoch
+    # @return [Time, nil] the UTC date, or nil for an Invalid Date
     def self.new_date(millis)
+      return nil if (millis.kind_of?(Float) && millis.nan?) || millis.abs > 8.64e15
+
       Time.at(Rational(millis.truncate, 1000), :in => 'UTC')
     end
 
@@ -641,6 +647,16 @@ module Jsonata
     end
 
     def get_date_time_fragment(date, component)
+      # (Ruby specific) the getters of an Invalid Date return NaN, from which every numeric component is NaN
+      if date.nil?
+        return case component
+               when 'P' then 'am' # NaN >= 12 is false
+               when 'C', 'E' then 'ISO'
+               when 'Z', 'z' then nil
+               else Float::NAN
+               end
+      end
+
       component_value = nil
       case component
       when 'Y' # year
@@ -795,8 +811,43 @@ module Jsonata
             component_value = _format_integer(component_value, marker_spec[:integer_format])
           end
         elsif marker_spec[:component] == 'f'
-          # TODO Section 9.8.4.5 Formatting Fractional Seconds
-          component_value = _format_integer(component_value, marker_spec[:integer_format])
+          # Section 9.8.4.5 Formatting Fractional Seconds
+          if marker_spec[:integer_format][:primary] != FORMATS[:DECIMAL] ||
+             (component_value.kind_of?(Float) && component_value.nan?)
+            component_value = _format_integer(component_value, marker_spec[:integer_format])
+          else
+            picture = Utils.string_to_array(marker_spec[:presentation1])
+            # Append an empty modifier so semicolons in the primary token remain grouping signs.
+            format = analyse_integer_picture("#{marker_spec[:presentation1]};")
+            min_digits = format[:mandatory_digits]
+            max_digits = min_digits + format[:optional_digits]
+            if marker_spec[:width]
+              min_digits = [min_digits, marker_spec[:width][:min]].max unless marker_spec[:width][:min].nil?
+              max_digits = [max_digits, min_digits].max
+              max_digits = [max_digits, marker_spec[:width][:max]].max unless marker_spec[:width][:max].nil?
+            elsif picture.length == 1
+              max_digits = 3 # a single digit allows the full millisecond precision
+            end
+
+            fraction = "00#{component_value}"[-3..].sub(/0+\z/, '')
+            fraction += '0' * (min_digits - fraction.length) if fraction.length < min_digits
+            # Pad and truncate on the right, without rounding into the next second.
+            digits = fraction[0, max_digits].each_char.map do |digit|
+              (format[:zero_code] + digit.to_i).chr(Encoding::UTF_8)
+            end
+            # Count grouping positions from the left. The output cannot exceed the
+            # adjusted picture's width, so separators never need to be extrapolated.
+            position = 0
+            picture.each do |character|
+              code = character.ord
+              if character == '#' || code.between?(format[:zero_code], format[:zero_code] + 9)
+                position += 1
+              elsif position < digits.length
+                digits[position] = character + digits[position]
+              end
+            end
+            component_value = digits.join
+          end
         elsif marker_spec[:component] == 'Z' || marker_spec[:component] == 'z'
           # Section 9.8.4.6 Formatting timezones
           offset = (offset_hours * 100) + offset_minutes
