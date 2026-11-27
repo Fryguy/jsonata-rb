@@ -64,6 +64,9 @@ module Jsonata
       't'  => "\t"
     }.freeze
 
+    # opening and closing delimiters of template strings
+    TEMPLATE_DELIMITERS = {"«" => "»", '<<' => '>>'}.freeze
+
     WHITESPACE = " \t\n\r\v"
 
     # The value of a regex literal token
@@ -79,6 +82,7 @@ module Jsonata
         @path = path
         @position = 0
         @length = path.length
+        @templates = []
       end
 
       def call(prefix = false)
@@ -86,6 +90,11 @@ module Jsonata
       end
 
       def next(prefix = false)
+        template = @templates.last
+        if template && template[:depth].zero? && char_at(@position) != '{'
+          # template text; a '{' falls through to be lexed as an operator, starting an embedded expression
+          return next_template_token(template)
+        end
         return nil if @position >= @length
 
         current_char = char_at(@position)
@@ -115,6 +124,18 @@ module Jsonata
           @position += 1
           return create('regex', scan_regex)
         end
+        # test for the start of a template string: '«', or '<<' in prefix position
+        # (in infix position '<' is the less-than operator, so "a"<<<b>> is "a" < <<b>>)
+        open = if current_char == '<'
+                 prefix == true ? '' : (@path[@position, 2] || '')
+               else
+                 current_char
+               end
+        if TEMPLATE_DELIMITERS.key?(open)
+          @position += open.length
+          @templates.push({:close => TEMPLATE_DELIMITERS[open], :depth => 0})
+          return create('template', open)
+        end
         # handle double-char operators
         two_chars = @path[@position, 2]
         if %w[.. := != >= <= ** ~> ?: ??].include?(two_chars)
@@ -124,6 +145,15 @@ module Jsonata
         # test for single char operators
         if OPERATORS.key?(current_char)
           @position += 1
+          if template
+            # track braces inside an embedded expression; the '}' that brings the depth
+            # back to zero closes the expression and resumes the template text
+            if current_char == '{'
+              template[:depth] += 1
+            elsif current_char == '}'
+              template[:depth] -= 1
+            end
+          end
           return create('operator', current_char)
         end
         # test for string literals
@@ -136,29 +166,7 @@ module Jsonata
             current_char = char_at(@position)
             if current_char == '\\' # escape sequence
               @position += 1
-              current_char = char_at(@position)
-              if ESCAPES.key?(current_char)
-                qstr << ESCAPES[current_char]
-              elsif current_char == 'u'
-                # \u should be followed by 4 hex digits
-                octets = @path[@position + 1, 4] || ''
-                if /\A[0-9a-fA-F]+\z/.match?(octets)
-                  codepoint = octets.to_i(16)
-                  @position += 4
-                  # Ruby strings cannot hold UTF-16 surrogate pairs, so combine them here
-                  low = @path[@position + 1, 6]
-                  if (0xD800..0xDBFF).cover?(codepoint) && low&.match?(/\A\\u[dD][c-fC-F][0-9a-fA-F]{2}\z/)
-                    codepoint = 0x10000 + ((codepoint - 0xD800) << 10) + (low[2..].to_i(16) - 0xDC00)
-                    @position += 6
-                  end
-                  qstr << Utils.from_char_code(codepoint)
-                else
-                  raise Jsonata::Error.new('S0104', :position => @position)
-                end
-              else
-                # illegal escape sequence
-                raise Jsonata::Error.new('S0103', :position => @position, :token => current_char)
-              end
+              qstr << scan_escape
             elsif current_char == quote_type
               @position += 1
               return create('string', qstr)
@@ -284,6 +292,79 @@ module Jsonata
           @position += 1
         end
         raise Jsonata::Error.new('S0302', :position => @position)
+      end
+
+      # decode the escape sequence whose '\' has just been scanned; position is on the escaped character.
+      # 'extra' lists additional characters that may be escaped as themselves
+      def scan_escape(extra = nil)
+        current_char = char_at(@position)
+        return ESCAPES[current_char] if ESCAPES.key?(current_char)
+        return current_char if current_char != '' && extra&.include?(current_char)
+
+        if current_char == 'u'
+          # \u should be followed by 4 hex digits
+          octets = @path[@position + 1, 4] || ''
+          if /\A[0-9a-fA-F]{4}\z/.match?(octets)
+            @position += 4
+            codepoint = octets.to_i(16)
+            # Ruby strings cannot hold UTF-16 surrogate pairs, so combine them here (Ruby specific)
+            low = @path[@position + 1, 6]
+            if (0xD800..0xDBFF).cover?(codepoint) && low&.match?(/\A\\u[dD][c-fC-F][0-9a-fA-F]{2}\z/)
+              codepoint = 0x10000 + ((codepoint - 0xD800) << 10) + (low[2..].to_i(16) - 0xDC00)
+              @position += 6
+            end
+            return Utils.from_char_code(codepoint)
+          end
+          raise Jsonata::Error.new('S0104', :position => @position)
+        end
+        # illegal escape sequence
+        raise Jsonata::Error.new('S0103', :position => @position, :token => current_char)
+      end
+
+      # Template strings «...» and <<...>> are tokenized as:
+      #   (template) [ (template-text) | '{' <tokens> '}' ]* (template-end)
+      # The tokenizer keeps a stack with one entry per open template (they can nest inside {}).
+      # Each entry counts the unmatched '{' in the current embedded expression; when it is
+      # zero the tokenizer is scanning literal text, otherwise it is scanning JSONata tokens.
+      # The count only changes where '{' and '}' are lexed as operators (see below), and the
+      # '{' that starts an embedded expression is lexed that way too, taking the count to one.
+      # Keeping this state here means every caller of the lexer (including remainingTokens)
+      # gets the right tokens without having to know about templates.
+      # Reaching the end of input inside template text is not an error here: the lexer returns
+      # null like it does at the end of any expression, and the parser reports the unterminated
+      # template (S0107), so that it can be recovered from in recover mode.
+      TEMPLATE_ESCAPES = "{}<>«»"
+      private_constant :TEMPLATE_ESCAPES
+
+      def template_close?(template)
+        # the first '>>' closes a <<...>> template, so '<<a>>>b' is '<<a>>' followed by '>'
+        @path[@position, template[:close].length] == template[:close]
+      end
+
+      def next_template_token(template)
+        return nil if @position >= @length
+
+        if template_close?(template)
+          @position += template[:close].length
+          @templates.pop
+          return create('template-end', template[:close])
+        end
+        # literal text up to the next unescaped '{' or the closing delimiter
+        text = +''
+        while @position < @length && char_at(@position) != '{' && !template_close?(template)
+          current_char = char_at(@position)
+          if current_char == '\\'
+            @position += 1
+            text << scan_escape(TEMPLATE_ESCAPES)
+          elsif current_char == '}'
+            # a literal '}' must be escaped, so that a stray brace is reported rather than kept as text
+            raise Jsonata::Error.new('S0108', :position => @position + 1, :token => current_char)
+          else
+            text << current_char
+          end
+          @position += 1
+        end
+        create('template-text', text)
       end
     end
 
@@ -429,6 +510,8 @@ module Jsonata
       when 'regex'
         type = 'regex'
         sym = @symbol_table['(regex)']
+      when 'template', 'template-text', 'template-end'
+        sym = @symbol_table["(#{type})"]
       else
         return handle_error(Jsonata::Error.new('S0205', :position => next_token[:position], :token => value))
       end
@@ -438,10 +521,14 @@ module Jsonata
       @node
     end
 
+    # prefix operators whose nud parses an operand, so the token after them is in prefix position
+    STARTS_OPERAND = {'-' => true, '(' => true, '[' => true, '{' => true, '|' => true}.freeze
+    private_constant :STARTS_OPERAND
+
     # Pratt's algorithm
     def expression(rbp)
       t = @node
-      advance(nil, true)
+      advance(nil, !(t[:type] == 'operator' && STARTS_OPERAND[t[:value]]))
       left = symbol_of(t).nud.call(t)
       while rbp < node_lbp(@node)
         t = @node
@@ -514,6 +601,8 @@ module Jsonata
       symbol(']')
       symbol('}')
       symbol('..') # range operator
+      symbol('(template-text)') # only valid inside a template string
+      symbol('(template-end)')
       infix('.') # map operator
       infix('+') # numeric addition
       infix('-') # numeric subtraction
@@ -547,6 +636,41 @@ module Jsonata
         }
         this[:then] = left
         this[:else] = expression(0)
+        this
+      end
+
+      # template string: «text {expr} text» or <<text {expr} text>>
+      # produces a 'template' node whose parts are, in order, literal text (plain strings) and
+      # embedded expressions ({expression, position}, where position is that of the opening '{')
+      prefix('(template)') do |this|
+        error_count = @errors.length
+        this[:type] = 'template'
+        this[:parts] = []
+        # (jsonata-js: for (;;) with return statements; here each exit breaks out of the loop and returns this)
+        loop do
+          if node_id(@node) == '(template-text)'
+            this[:parts].push(@node[:value])
+            advance
+          elsif node_id(@node) == '{'
+            position = @node[:position]
+            advance
+            if node_id(@node) != '}' # empty {} contributes nothing
+              this[:parts].push({:expression => expression(0), :position => position})
+            end
+            advance('}')
+          elsif node_id(@node) == '(template-end)'
+            advance(nil, true)
+            break
+          elsif node_id(@node) == '(end)' && @errors.length == error_count
+            # the input ended inside the template text
+            handle_error(Jsonata::Error.new('S0107', :position => @node[:position], :value => TEMPLATE_DELIMITERS[this[:value]]))
+            break
+          else
+            # recover mode only: an error inside {} has already been recorded and the
+            # remaining tokens consumed, so return what has been parsed so far
+            break
+          end
+        end
         this
       end
 
@@ -1156,6 +1280,15 @@ module Jsonata
         }
         body = process_ast(expr[:body])
         result[:body] = tail_call_optimize(body)
+      when 'template'
+        result = {:type => expr[:type], :value => expr[:value], :position => expr[:position]}
+        result[:parts] = expr[:parts].map do |part|
+          next part if part.kind_of?(String) # literal text
+
+          part_ast = process_ast(part[:expression])
+          push_ancestry(result, part_ast)
+          {:expression => part_ast, :position => part[:position]}
+        end
       when 'condition'
         result = {:type => expr[:type], :position => expr[:position]}
         result[:condition] = process_ast(expr[:condition])
